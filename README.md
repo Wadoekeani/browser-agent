@@ -12,7 +12,7 @@ A Claude agent that lives in Chrome's side panel. It reads the page you're on, c
 ## Features
 
 - Streams replies with Markdown (tables, code blocks with copy buttons) and collapsible thinking summaries
-- Page tools: `read_page`, `navigate`, `click`, `type`
+- Page tools: `read_page`, `navigate`, `click`, `type` (also picks `<select>` options), `scroll`. `read_page elements=true` lists interactive elements with numbers, so the model clicks `ref: 12` instead of guessing CSS selectors
 - Skills: reusable instructions in the same `SKILL.md` format as Claude Code — type `/` to pick one, or let the model load one when it fits
 - Slash commands: `/clear` resets the conversation
 - Memory: tell it "remember …" and it keeps short facts about you across conversations (Settings → Memory to view, edit or turn off). Memories live in `chrome.storage.local` and ride along in the system prompt, so no extra round trip; only things you say yourself are stored, never text from web pages
@@ -72,6 +72,7 @@ Skills are prompts — read one before importing it.
 | `src/sidepanel.js` | Agent loop, tool implementations, UI wiring |
 | `src/shared.js` | System prompt and tool definitions |
 | `src/skills.js` | `SKILL.md` parsing / serialization |
+| `src/elements.js` | Numbered interactive-element list injected into the page (`data-ba` refs) |
 | `src/memory.js` | Memory add / forget / prompt (`npm run check` covers both) |
 | `extension/` | Manifest, side panel HTML/CSS, service worker (load this folder in Chrome) |
 

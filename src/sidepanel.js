@@ -3,6 +3,7 @@ import { marked } from "marked";
 import DOMPurify from "dompurify";
 import { SYSTEM, tools, MEMORY_TOOLS } from "./shared.js";
 import { memoryPrompt, addMemory, forgetMemory } from "./memory.js";
+import { listElements } from "./elements.js";
 import { parseSkill, serializeSkill, skillsPrompt, expandSlash, cleanName } from "./skills.js";
 
 let skills = []; // [{ name, description, body }]，存在 chrome.storage.local
@@ -43,6 +44,18 @@ function waitLoad(tabId, ms = 15000) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+const ELEMENT_LIMIT = 150; // 一行約 15 token，150 個約 2k token
+
+// ref 是 listElements 寫進頁面的 data-ba 編號
+function target(input) {
+  if (input.ref != null) return `[data-ba="${Math.floor(input.ref)}"]`;
+  if (input.selector) return input.selector;
+  throw new Error("要給 ref 或 selector");
+}
+const notFound = (input) => new Error(input.ref != null
+  ? `找不到編號 ${input.ref} 的元素，頁面可能已變動，請重新 read_page elements=true`
+  : `找不到元素：${input.selector}`);
+
 async function runTool(name, input) {
   const tab = await activeTab();
   switch (name) {
@@ -58,6 +71,7 @@ async function runTool(name, input) {
       return skill.body;
     }
     case "read_page": {
+      if (input.elements) return `標題：${tab.title}\n網址：${tab.url}\n\n${await inPage(tab.id, listElements, [ELEMENT_LIMIT])}`;
       const body = await inPage(tab.id, (sel, html) => {
         if (sel || html) {
           const el = sel ? document.querySelector(sel) : document.body;
@@ -101,30 +115,65 @@ async function runTool(name, input) {
         el.scrollIntoView({ block: "center" });
         el.click();
         return true;
-      }, [input.selector]);
-      if (!ok) throw new Error(`找不到元素：${input.selector}`);
+      }, [target(input)]);
+      if (!ok) throw notFound(input);
       await sleep(800); // 讓點擊觸發的導頁 / 重繪有時間發生
       return "已點擊";
     }
     case "type": {
       const ok = await inPage(tab.id, (sel, text, submit) => {
         const el = document.querySelector(sel);
-        if (!el) return false;
+        if (!el) return null;
         el.focus();
         if (el.isContentEditable) {
           el.textContent = text;
         } else {
+          let value = text;
+          if (el.tagName === "SELECT") {
+            const t = text.trim();
+            const opts = [...el.options];
+            const opt = opts.find((o) => o.text.trim() === t || o.value === t) ?? opts.find((o) => o.text.includes(t));
+            if (!opt) return `沒有「${t}」這個選項，可選：${opts.map((o) => o.text.trim()).join("、")}`;
+            value = opt.value;
+          }
           // 走原生 setter，React 等框架才收得到變更
-          Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), "value").set.call(el, text);
+          Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), "value").set.call(el, value);
         }
         el.dispatchEvent(new Event("input", { bubbles: true }));
         el.dispatchEvent(new Event("change", { bubbles: true }));
         if (submit) el.form ? el.form.requestSubmit() : el.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
         return true;
-      }, [input.selector, input.text, !!input.submit]);
-      if (!ok) throw new Error(`找不到元素：${input.selector}`);
+      }, [target(input), input.text, !!input.submit]);
+      if (ok == null) throw notFound(input);
+      if (typeof ok === "string") throw new Error(ok);
       if (input.submit) await sleep(800);
       return "已輸入";
+    }
+    case "scroll": {
+      const pos = await inPage(tab.id, (sel, up) => {
+        if (sel) {
+          const el = document.querySelector(sel);
+          if (!el) return null;
+          el.scrollIntoView({ block: "center" });
+          return "已捲到該元素";
+        }
+        const pct = (top, max) => (max > 0 ? `目前在 ${Math.round((top / max) * 100)}% 處` : "頁面不能捲動");
+        const before = scrollY;
+        scrollBy(0, (up ? -0.8 : 0.8) * innerHeight);
+        if (scrollY !== before) return pct(scrollY, document.documentElement.scrollHeight - innerHeight);
+        // 視窗沒動：很多網頁應用是內層容器在捲，從畫面中央往上找可捲動的祖先
+        for (let el = document.elementFromPoint(innerWidth / 2, innerHeight / 2); el; el = el.parentElement) {
+          const oy = getComputedStyle(el).overflowY;
+          if ((oy === "auto" || oy === "scroll") && el.scrollHeight > el.clientHeight) {
+            el.scrollBy(0, (up ? -0.8 : 0.8) * el.clientHeight);
+            return pct(el.scrollTop, el.scrollHeight - el.clientHeight);
+          }
+        }
+        return up ? "已在最上方" : "已在最下方";
+      }, [input.ref != null || input.selector ? target(input) : null, input.direction === "up"]);
+      if (pos == null) throw notFound(input);
+      await sleep(500); // 給延遲載入的內容時間出現
+      return pos;
     }
     default:
       throw new Error(`未知工具：${name}`);
