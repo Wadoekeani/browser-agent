@@ -322,8 +322,28 @@ const saved = await chrome.storage.local.get(["key", "model", "skills"]);
 if (saved.key) $("key").value = saved.key;
 if (saved.model && [...$("model").options].some((o) => o.value === saved.model)) $("model").value = saved.model;
 
+// fluxRelay 金鑰才有的額外功能：右上角餘額（Anthropic 金鑰查不到，直接隱藏）
+const LOW_BALANCE = 50; // 新台幣
+async function refreshBalance() {
+  const key = $("key").value;
+  const chip = $("balance");
+  if (!key || key.startsWith("sk-ant-")) { chip.hidden = true; return; }
+  try {
+    const res = await fetch(`${GATEWAY}/api/v1/relay/me/usage`, { headers: { authorization: `Bearer ${key}` } });
+    if (!res.ok) throw new Error(res.status);
+    const u = await res.json();
+    chip.textContent = `NT$ ${u.balance.toLocaleString("en-US", { maximumFractionDigits: u.balance < 100 ? 2 : 0 })}`;
+    chip.title = `fluxRelay 餘額\n近 ${u.window_days} 天花費 NT$ ${u.spend_twd}，${u.requests} 次請求\n點擊前往儲值`;
+    chip.classList.toggle("low", u.balance < LOW_BALANCE);
+    chip.hidden = false;
+  } catch {
+    chip.hidden = true; // 查不到就不顯示，不擋對話
+  }
+}
+
 function showView() {
   document.body.dataset.view = $("key").value ? "chat" : "onboard";
+  refreshBalance();
   if (document.body.dataset.view === "chat") $("input").focus();
   else $("onboard-key").focus();
 }
@@ -333,6 +353,7 @@ $("model").addEventListener("change", () => chrome.storage.local.set({ model: $(
 $("key").addEventListener("change", () => {
   $("key").value = $("key").value.trim();
   chrome.storage.local.set({ key: $("key").value });
+  refreshBalance();
 });
 
 $("onboard-form").addEventListener("submit", async (e) => {
@@ -566,6 +587,7 @@ $("form").addEventListener("submit", async (e) => {
   } finally {
     controller = null;
     delete document.body.dataset.busy;
+    refreshBalance(); // 每輪結束更新扣款後的餘額
     $("send").setAttribute("aria-label", "送出");
   }
 });

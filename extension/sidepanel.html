@@ -79,6 +79,21 @@
   .hint { font-size: 12px; color: var(--faint); }
   .hint a { color: var(--accent); text-decoration: none; }
   .form-error { font-size: 12px; color: var(--err); }
+  .key-compare { margin: 2px 0 0; padding: 0; list-style: none; display: grid; gap: 6px; font-size: 12px; color: var(--muted); }
+  .key-compare li { position: relative; padding-left: 16px; }
+  .key-compare li::before { content: "✓"; position: absolute; left: 0; color: var(--ok); font-weight: 600; }
+  .key-compare li:last-child::before { content: "–"; color: var(--faint); }
+  .key-compare strong { color: var(--fg); font-weight: 600; }
+  .balance {
+    display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 9px; border-radius: 999px;
+    font-size: 12px; font-weight: 500; font-variant-numeric: tabular-nums; text-decoration: none;
+    color: var(--fg); background: var(--surface-2); border: 1px solid var(--line);
+  }
+  .balance::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--ok); }
+  .balance:hover { border-color: var(--accent); }
+  .balance[hidden], body[data-view=onboard] .balance { display: none; }
+  .balance.low { color: var(--err); background: var(--err-soft); border-color: color-mix(in srgb, var(--err) 30%, transparent); }
+  .balance.low::before { background: var(--err); }
   .promo {
     display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 12px; text-decoration: none; color: var(--fg);
     background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
@@ -305,6 +320,7 @@
       <div class="logo"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1.5l1.7 4.3 4.3 1.7-4.3 1.7L8 13.5 6.3 9.2 2 7.5l4.3-1.7z"/></svg></div>
       Browser Agent
     </div>
+    <a class="balance" id="balance" href="https://ai-gateway.iosoftware.ai/" target="_blank" rel="noopener" hidden></a>
     <button class="icon-btn" id="reset" type="button" title="新對話" aria-label="新對話">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 3.5v9M3.5 8h9"/></svg>
     </button>
@@ -323,10 +339,14 @@
       <input class="input" id="onboard-key" type="password" placeholder="relay-… 或 sk-ant-…" autocomplete="off" spellcheck="false">
       <div class="form-error" id="onboard-error"></div>
       <button class="btn btn-primary" type="submit">開始使用</button>
-      <div class="hint">fluxRelay 金鑰或自己的 Anthropic API Key 都可以。金鑰只存在這台電腦的瀏覽器裡。</div>
+      <ul class="key-compare">
+        <li><strong>fluxRelay 金鑰</strong>（relay-…）：可以用，另外有額外功能，例如右上角即時顯示餘額</li>
+        <li><strong>Anthropic API Key</strong>（sk-ant-…）：可以用，但沒有額外功能</li>
+      </ul>
+      <div class="hint">金鑰只存在這台電腦的瀏覽器裡。</div>
     </form>
     <a class="promo" href="https://ai-gateway.iosoftware.ai/" target="_blank" rel="noopener">
-      <span><strong>還沒有金鑰？</strong><small>用 fluxRelay 取得，按用量計費</small></span>
+      <span><strong>還沒有金鑰？</strong><small>用 fluxRelay 取得，按用量計費、右上角看得到餘額</small></span>
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5L10.5 8 6 12.5"/></svg>
     </a>
   </section>

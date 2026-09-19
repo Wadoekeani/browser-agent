@@ -22,10 +22,10 @@ A Claude agent that lives in Chrome's side panel. It reads the page you're on, c
 
 Paste either key into the side panel. The prefix decides where requests go:
 
-| Key | Goes to | Billing |
-|---|---|---|
-| `sk-ant-…` | Anthropic API directly | Your Anthropic account |
-| `relay-…` | [fluxRelay](https://ai-gateway.iosoftware.ai/) | Pay-as-you-go on fluxRelay |
+| Key | Goes to | Billing | Extras |
+|---|---|---|---|
+| `relay-…` | [fluxRelay](https://ai-gateway.iosoftware.ai/) | Pay-as-you-go on fluxRelay | Live balance in the header |
+| `sk-ant-…` | Anthropic API directly | Your Anthropic account | — |
 
 The key is stored in `chrome.storage.local` on your machine only.
 
