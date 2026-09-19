@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PDF</title>
+<style>
+  :root {
+    --bg: #eeeef1; --bar: #ffffff; --fg: #16161a; --muted: #6b6b76; --line: #e0e0e6; --btn: #f1f1f3; --accent: #5b5bd6; --err: #d93036;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0f0f11; --bar: #18181b; --fg: #ececf1; --muted: #9d9daa; --line: #26262b; --btn: #26262b; --accent: #8b8bf5; --err: #f87171; color-scheme: dark; }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    display: flex; flex-direction: column; background: var(--bg); color: var(--fg);
+    font: 13.5px/1.5 "Inter", system-ui, -apple-system, "PingFang TC", "Noto Sans TC", sans-serif;
+  }
+  header {
+    display: flex; align-items: center; gap: 6px; height: 44px; padding: 0 12px; flex: none;
+    background: var(--bar); border-bottom: 1px solid var(--line);
+  }
+  #title { flex: 1; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  header button {
+    min-width: 32px; height: 30px; padding: 0 10px; border: 0; border-radius: 7px;
+    background: var(--btn); color: var(--fg); font: inherit; cursor: pointer;
+  }
+  header button:hover { color: var(--accent); }
+  header button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  #zoom { min-width: 44px; text-align: center; color: var(--muted); font-variant-numeric: tabular-nums; }
+  #pages { flex: 1; overflow: auto; padding: 16px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  #status { margin: 40px auto; max-width: 480px; color: var(--muted); text-align: center; white-space: pre-wrap; }
+  #status[data-error] { color: var(--err); }
+  .page { position: relative; flex: none; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.15); }
+  .page canvas { display: block; width: 100%; height: 100%; }
+
+  /* pdf.js 文字層（取自 pdfjs-dist/web/pdf_viewer.css 的 .textLayer，只留選取需要的部分） */
+  .page { --user-unit: 1; --total-scale-factor: calc(var(--scale-factor) * var(--user-unit)); --scale-round-x: 1px; --scale-round-y: 1px; }
+  .textLayer {
+    color-scheme: only light; position: absolute; text-align: initial; inset: 0; overflow: clip; opacity: 1;
+    line-height: 1; letter-spacing: normal; word-spacing: normal; text-size-adjust: none; forced-color-adjust: none;
+    transform-origin: 0 0; caret-color: CanvasText; z-index: 0;
+    --min-font-size: 1;
+    --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+    --min-font-size-inv: calc(1 / var(--min-font-size));
+  }
+  .textLayer :is(span, br) { color: transparent; position: absolute; white-space: pre; cursor: text; transform-origin: 0% 0%; user-select: text; }
+  .textLayer > :not(.markedContent), .textLayer .markedContent span:not(.markedContent) {
+    z-index: 1; --font-height: 0; font-size: calc(var(--text-scale-factor) * var(--font-height));
+    --scale-x: 1; --rotate: 0deg; transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
+  }
+  .textLayer .markedContent { display: contents; }
+  .textLayer ::selection { background: color-mix(in srgb, AccentColor, transparent 50%); color: transparent; }
+  .textLayer br::selection { background: transparent; }
+  .textLayer .endOfContent { display: block; position: absolute; inset: 100% 0 0; z-index: 0; cursor: default; user-select: none; }
+</style>
+</head>
+<body>
+<header>
+  <span id="title">PDF</span>
+  <button id="zoom-out" type="button">−</button>
+  <span id="zoom"></span>
+  <button id="zoom-in" type="button">+</button>
+  <button id="fit" type="button"></button>
+</header>
+<main id="pages"><div id="status"></div></main>
+<script type="module" src="viewer.js"></script>
+</body>
+</html>

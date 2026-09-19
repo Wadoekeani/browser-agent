@@ -3,20 +3,28 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "esbuild src/sidepanel.js --bundle --format=esm --target=chrome120 --outfile=extension/sidepanel.js",
-    "watch": "npm run build -- --watch",
-    "check": "node scripts/check.mjs",
-    "test:e2e": "npm run build && node scripts/e2e.mjs",
+    "build": "node scripts/build.mjs",
+    "watch": "node scripts/build.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "check": "esbuild scripts/check.mjs --bundle --platform=node --format=esm --log-level=warning --outfile=dist/check.mjs && node dist/check.mjs",
+    "test:e2e": "npm run build && esbuild scripts/e2e.mjs --bundle --platform=node --format=esm --external:playwright --log-level=warning --outfile=dist/e2e.mjs && node dist/e2e.mjs",
     "package": "node scripts/package.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.127.0",
     "dompurify": "^3.4.15",
-    "marked": "^18.0.13"
+    "marked": "^18.0.13",
+    "pdfjs-dist": "^6.3.289",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
   },
   "devDependencies": {
+    "@types/chrome": "^0.3.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "esbuild": "^0.28.2",
-    "playwright": "^1.63.0"
+    "playwright": "^1.63.0",
+    "typescript": "^7.0.2"
   },
   "license": "MIT"
 }

@@ -1,0 +1,4 @@
+{
+  "extName": { "message": "Browser Agent" },
+  "extDescription": { "message": "サイドパネルでClaudeとチャット。現在のタブを読み取り、操作できます。" }
+}

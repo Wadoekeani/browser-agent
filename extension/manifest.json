@@ -1,9 +1,15 @@
 {
   "manifest_version": 3,
-  "name": "Browser Agent",
+  "name": "__MSG_extName__",
   "version": "0.1.0",
-  "description": "在側邊欄跟 Claude 對話，它能讀取並操作目前分頁。",
-  "action": { "default_title": "Browser Agent" },
+  "minimum_chrome_version": "122",
+  "description": "__MSG_extDescription__",
+  "default_locale": "en",
+  "icons": { "16": "icons/icon16.png", "32": "icons/icon32.png", "48": "icons/icon48.png", "128": "icons/icon128.png" },
+  "action": {
+    "default_title": "__MSG_extName__",
+    "default_icon": { "16": "icons/icon16.png", "32": "icons/icon32.png", "48": "icons/icon48.png", "128": "icons/icon128.png" }
+  },
   "background": { "service_worker": "background.js" },
   "side_panel": { "default_path": "sidepanel.html" },
   "permissions": ["sidePanel", "storage", "scripting", "tabs"],

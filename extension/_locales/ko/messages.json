@@ -1,0 +1,4 @@
+{
+  "extName": { "message": "Browser Agent" },
+  "extDescription": { "message": "사이드 패널에서 Claude와 대화하세요. 현재 탭을 읽고 조작할 수 있습니다." }
+}

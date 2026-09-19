@@ -1,0 +1,4 @@
+{
+  "extName": { "message": "Browser Agent" },
+  "extDescription": { "message": "Chatea con Claude en el panel lateral. Puede leer y controlar la pestaña actual." }
+}

@@ -8,7 +8,6 @@ labels: bug
 
 - Extension version (see `chrome://extensions`, or `manifest.json`'s `version`):
 - Chrome version (`chrome://version`):
-- Key type: fluxRelay (`relay-…`) or Anthropic (`sk-ant-…`)?
 - Model / effort level:
 - Site where it happened (mask the URL if it's sensitive — domain is usually enough):
 

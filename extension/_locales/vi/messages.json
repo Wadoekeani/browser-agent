@@ -1,0 +1,4 @@
+{
+  "extName": { "message": "Browser Agent" },
+  "extDescription": { "message": "Trò chuyện với Claude ở bảng bên. Claude có thể đọc và thao tác trên tab hiện tại." }
+}

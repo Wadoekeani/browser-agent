@@ -1,0 +1,4 @@
+{
+  "extName": { "message": "Browser Agent" },
+  "extDescription": { "message": "Converse com o Claude no painel lateral. Ele pode ler e operar a aba atual." }
+}
