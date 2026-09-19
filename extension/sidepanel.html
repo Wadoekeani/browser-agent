@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Browser Agent</title>
+<style>
+  :root {
+    --bg: #f7f7f8; --surface: #ffffff; --surface-2: #f1f1f3;
+    --fg: #16161a; --muted: #6b6b76; --faint: #9a9aa4;
+    --line: #e6e6ea; --line-strong: #d6d6dc;
+    --accent: #5b5bd6; --accent-fg: #ffffff; --accent-soft: #eeeefc;
+    --ok: #1f9d55; --err: #d93036; --err-soft: #fdeeee;
+    --shadow: 0 1px 2px rgba(16,16,24,.04), 0 2px 8px rgba(16,16,24,.04);
+    --ring: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f0f11; --surface: #18181b; --surface-2: #202024;
+      --fg: #ececf1; --muted: #9d9daa; --faint: #6c6c78;
+      --line: #26262b; --line-strong: #34343b;
+      --accent: #8b8bf5; --accent-fg: #0f0f11; --accent-soft: #23233a;
+      --ok: #4ade80; --err: #f87171; --err-soft: #2a1718;
+      --shadow: 0 1px 2px rgba(0,0,0,.3);
+      color-scheme: dark;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; display: flex; flex-direction: column;
+    font: 13.5px/1.6 "Inter", system-ui, -apple-system, "PingFang TC", "Noto Sans TC", sans-serif;
+    background: var(--bg); color: var(--fg); -webkit-font-smoothing: antialiased;
+  }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  svg { width: 16px; height: 16px; flex: none; }
+  :focus-visible { outline: none; box-shadow: var(--ring); }
+
+  /* ---------- 頂列 ---------- */
+  header {
+    display: flex; align-items: center; gap: 8px; height: 48px; padding: 0 10px 0 14px;
+    background: var(--surface); border-bottom: 1px solid var(--line);
+  }
+  .brand { display: flex; align-items: center; gap: 8px; font-weight: 600; letter-spacing: -.01em; flex: 1; }
+  .logo {
+    width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center;
+    background: var(--accent); color: var(--accent-fg);
+  }
+  .logo svg { width: 13px; height: 13px; }
+  .icon-btn {
+    width: 30px; height: 30px; display: grid; place-items: center; border-radius: 7px;
+    border: 0; background: transparent; color: var(--muted);
+  }
+  .icon-btn:hover { background: var(--surface-2); color: var(--fg); }
+
+  /* ---------- 首次設定 ---------- */
+  #onboard { flex: 1; display: none; flex-direction: column; justify-content: center; padding: 24px 20px; gap: 18px; }
+  body[data-view=onboard] #onboard { display: flex; }
+  body[data-view=onboard] #chat, body[data-view=onboard] header .icon-btn { display: none; }
+  #onboard h1 { margin: 0; font-size: 20px; letter-spacing: -.02em; line-height: 1.3; }
+  #onboard p { margin: 0; color: var(--muted); }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); padding: 16px; display: grid; gap: 10px; }
+  .field-label { font-size: 12px; font-weight: 500; color: var(--muted); }
+  .input {
+    width: 100%; height: 36px; padding: 0 10px; border-radius: 8px;
+    background: var(--surface); border: 1px solid var(--line-strong);
+  }
+  .input:focus { border-color: var(--accent); box-shadow: var(--ring); outline: none; }
+  .btn {
+    height: 36px; padding: 0 14px; border-radius: 8px; border: 1px solid transparent;
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-weight: 500;
+  }
+  .btn-primary { background: var(--accent); color: var(--accent-fg); }
+  .btn-primary:hover { filter: brightness(1.06); }
+  .btn-ghost { background: var(--surface); border-color: var(--line-strong); }
+  .btn-ghost:hover { background: var(--surface-2); }
+  .hint { font-size: 12px; color: var(--faint); }
+  .form-error { font-size: 12px; color: var(--err); }
+  .form-error:empty { display: none; }
+
+  /* ---------- 對話 ---------- */
+  #chat { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  #scroll { flex: 1; overflow-y: auto; padding: 16px 14px 8px; }
+  #log { display: flex; flex-direction: column; gap: 14px; }
+
+  #empty { display: none; flex-direction: column; gap: 14px; padding: 28px 2px 0; }
+  #chat:has(#log:empty) #empty { display: flex; }
+  #empty h2 { margin: 0; font-size: 17px; letter-spacing: -.015em; }
+  #empty p { margin: -8px 0 4px; color: var(--muted); }
+  .suggest {
+    display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+    padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--surface); box-shadow: var(--shadow); transition: border-color .15s;
+  }
+  .suggest:hover { border-color: var(--accent); }
+  .suggest svg { color: var(--accent); }
+  .suggest span { flex: 1; }
+  .suggest small { display: block; color: var(--faint); font-size: 12px; }
+
+  .msg { white-space: pre-wrap; word-break: break-word; }
+  .user {
+    align-self: flex-end; max-width: 88%; padding: 8px 12px; border-radius: 12px 12px 4px 12px;
+    background: var(--accent); color: var(--accent-fg);
+  }
+  .assistant { padding: 0 2px; white-space: normal; }
+  @keyframes pulse { 50% { opacity: .4; } }
+
+  /* Markdown */
+  .md > :first-child { margin-top: 0; }
+  .md > :last-child { margin-bottom: 0; }
+  .md p, .md ul, .md ol, .md pre, .md table, .md blockquote { margin: 0 0 10px; }
+  .md h1, .md h2, .md h3, .md h4 { margin: 16px 0 6px; line-height: 1.35; letter-spacing: -.01em; }
+  .md h1 { font-size: 17px; } .md h2 { font-size: 15.5px; } .md h3, .md h4 { font-size: 14px; }
+  .md ul, .md ol { padding-left: 20px; }
+  .md li { margin: 2px 0; }
+  .md li::marker { color: var(--faint); }
+  .md a { color: var(--accent); text-decoration: none; border-bottom: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); }
+  .md a:hover { border-bottom-color: var(--accent); }
+  .md strong { font-weight: 600; }
+  .md hr { border: 0; border-top: 1px solid var(--line); margin: 14px 0; }
+  .md blockquote { padding: 2px 0 2px 12px; border-left: 3px solid var(--line-strong); color: var(--muted); }
+  .md :not(pre) > code {
+    font: 12px ui-monospace, "SF Mono", Menlo, monospace; padding: 1px 5px; border-radius: 5px;
+    background: var(--surface-2); border: 1px solid var(--line);
+  }
+  .md pre {
+    position: relative; padding: 10px 12px; border-radius: 8px; overflow-x: auto;
+    background: var(--surface); border: 1px solid var(--line);
+    font: 12px/1.55 ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  .md pre .copy { position: absolute; top: 6px; right: 6px; opacity: 0; }
+  .md pre:hover .copy { opacity: 1; }
+  .md table { display: block; overflow-x: auto; border-collapse: collapse; font-size: 12.5px; }
+  .md th, .md td { border: 1px solid var(--line); padding: 5px 9px; text-align: left; vertical-align: top; }
+  .md th { background: var(--surface-2); font-weight: 600; }
+  .md img { max-width: 100%; border-radius: 6px; }
+
+  .msg-actions { display: flex; gap: 2px; margin-top: 4px; opacity: 0; transition: opacity .15s; }
+  .assistant:hover .msg-actions, .assistant:focus-within .msg-actions { opacity: 1; }
+  .copy {
+    display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 6px; border-radius: 6px;
+    border: 0; background: transparent; color: var(--faint); font-size: 12px;
+  }
+  .md pre .copy { background: var(--surface-2); border: 1px solid var(--line); }
+  .copy svg { width: 13px; height: 13px; }
+  .copy:hover { background: var(--surface-2); color: var(--fg); }
+  .copy.done { color: var(--ok); }
+  .copy.done::after { content: "已複製"; }
+  .msg-actions .copy.done { font-size: 0; }
+  .msg-actions .copy.done::after { font-size: 12px; }
+
+  /* 思考過程 */
+  details.thinking { align-self: stretch; }
+  details.thinking > summary {
+    list-style: none; display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+    font-size: 12.5px; color: var(--muted); user-select: none;
+  }
+  details.thinking > summary::-webkit-details-marker { display: none; }
+  details.thinking > summary::before {
+    content: ""; width: 6px; height: 6px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor;
+    transform: rotate(-45deg); transition: transform .15s; margin-right: 2px;
+  }
+  details.thinking[open] > summary::before { transform: rotate(45deg); }
+  details.thinking:has(> .md) > summary:hover { color: var(--fg); }
+  details.thinking:not(:has(> .md)) > summary { cursor: default; }
+  details.thinking:not(:has(> .md)) > summary::before { display: none; }
+  details.thinking[data-state=running] > summary { animation: pulse 1.4s ease-in-out infinite; }
+  details.thinking > .md {
+    margin: 6px 0 0 3px; padding: 2px 0 2px 12px; border-left: 2px solid var(--line);
+    color: var(--muted); font-size: 12.5px;
+  }
+
+  .pending { display: flex; gap: 4px; padding: 6px 2px; }
+  .pending i { width: 6px; height: 6px; border-radius: 50%; background: var(--faint); animation: bounce 1.1s infinite ease-in-out; }
+  .pending i:nth-child(2) { animation-delay: .15s; } .pending i:nth-child(3) { animation-delay: .3s; }
+  @keyframes bounce { 0%, 80%, 100% { opacity: .3; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-3px); } }
+  .error {
+    padding: 8px 12px; border-radius: 10px; background: var(--err-soft); color: var(--err);
+    border: 1px solid color-mix(in srgb, var(--err) 25%, transparent); font-size: 13px;
+  }
+
+  details.tool {
+    align-self: flex-start; max-width: 100%; border: 1px solid var(--line); border-radius: 8px;
+    background: var(--surface); font-size: 12px;
+  }
+  details.tool > summary {
+    list-style: none; display: flex; align-items: center; gap: 7px; padding: 4px 9px; cursor: pointer; color: var(--muted);
+  }
+  details.tool > summary::-webkit-details-marker { display: none; }
+  details.tool code { font: 500 12px ui-monospace, "SF Mono", Menlo, monospace; color: var(--fg); }
+  details.tool .arg { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 150px; }
+  details.tool pre {
+    margin: 0; padding: 8px 10px; border-top: 1px solid var(--line); background: var(--surface-2);
+    font: 11.5px/1.5 ui-monospace, "SF Mono", Menlo, monospace; white-space: pre-wrap; word-break: break-all;
+    max-height: 160px; overflow: auto; border-radius: 0 0 8px 8px;
+  }
+  .status { width: 14px; height: 14px; display: grid; place-items: center; }
+  .status svg { width: 13px; height: 13px; }
+  .tool[data-state=running] .status::before {
+    content: ""; width: 10px; height: 10px; border-radius: 50%;
+    border: 1.5px solid var(--line-strong); border-top-color: var(--accent); animation: spin .7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(1turn); } }
+  .tool[data-state=ok] .status { color: var(--ok); }
+  .tool[data-state=error] .status { color: var(--err); }
+  .tool[data-state=error] { border-color: color-mix(in srgb, var(--err) 30%, transparent); }
+
+  /* ---------- 輸入框 ---------- */
+  form { padding: 8px 12px 12px; }
+  .composer {
+    background: var(--surface); border: 1px solid var(--line-strong); border-radius: 12px;
+    box-shadow: var(--shadow); transition: border-color .15s, box-shadow .15s;
+  }
+  .composer:focus-within { border-color: var(--accent); box-shadow: var(--ring); }
+  textarea {
+    display: block; width: 100%; border: 0; background: transparent; resize: none; outline: none;
+    padding: 10px 12px 4px; field-sizing: content; min-height: 44px; max-height: 180px;
+  }
+  textarea::placeholder { color: var(--faint); }
+  textarea:focus-visible { box-shadow: none; }
+  .composer-bar { display: flex; align-items: center; gap: 6px; padding: 4px 6px 6px 8px; }
+  .model {
+    appearance: none; border: 0; background: transparent; color: var(--muted); font-size: 12px; font-weight: 500;
+    padding: 4px 18px 4px 6px; border-radius: 6px; cursor: pointer;
+    background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%);
+    background-position: right 8px center, right 4px center; background-size: 4px 4px; background-repeat: no-repeat;
+  }
+  .model:hover { background-color: var(--surface-2); color: var(--fg); }
+  .spacer { flex: 1; }
+  #send {
+    width: 30px; height: 30px; border-radius: 8px; border: 0; display: grid; place-items: center;
+    background: var(--accent); color: var(--accent-fg);
+  }
+  #send:hover { filter: brightness(1.06); }
+  #send .i-stop, body[data-busy] #send .i-send { display: none; }
+  body[data-busy] #send .i-stop { display: block; }
+  body[data-busy] #send { background: var(--fg); color: var(--bg); }
+  .kbd-hint { font-size: 11px; color: var(--faint); }
+
+  /* ---------- 設定 ---------- */
+  dialog {
+    width: min(340px, calc(100vw - 32px)); padding: 0; border: 1px solid var(--line); border-radius: 14px;
+    background: var(--surface); color: var(--fg); box-shadow: 0 12px 40px rgba(0,0,0,.18);
+  }
+  dialog::backdrop { background: rgba(10,10,14,.35); }
+  .dlg-head { display: flex; align-items: center; padding: 12px 12px 0 16px; font-weight: 600; }
+  .dlg-head span { flex: 1; }
+  .dlg-body { padding: 12px 16px 16px; display: grid; gap: 14px; }
+  .row { display: grid; gap: 6px; }
+  .key-row { display: flex; gap: 6px; }
+  .key-row .input { flex: 1; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; }
+  .divider { height: 1px; background: var(--line); margin: 2px 0; }
+  .danger { color: var(--err); }
+</style>
+</head>
+<body data-view="chat">
+  <header>
+    <div class="brand">
+      <div class="logo"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1.5l1.7 4.3 4.3 1.7-4.3 1.7L8 13.5 6.3 9.2 2 7.5l4.3-1.7z"/></svg></div>
+      Browser Agent
+    </div>
+    <button class="icon-btn" id="reset" type="button" title="新對話" aria-label="新對話">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 3.5v9M3.5 8h9"/></svg>
+    </button>
+    <button class="icon-btn" id="open-settings" type="button" title="設定" aria-label="設定">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="2"/><path d="M8 1.8v1.6M8 12.6v1.6M1.8 8h1.6M12.6 8h1.6M3.6 3.6l1.1 1.1M11.3 11.3l1.1 1.1M3.6 12.4l1.1-1.1M11.3 4.7l1.1-1.1" stroke-linecap="round"/></svg>
+    </button>
+  </header>
+
+  <section id="onboard">
+    <div>
+      <h1>讓 AI 幫你操作<br>目前的網頁</h1>
+      <p style="margin-top:8px">讀內容、點按鈕、填表單，直接在側邊欄交代就好。</p>
+    </div>
+    <form class="card" id="onboard-form">
+      <label class="field-label" for="onboard-key">存取金鑰</label>
+      <input class="input" id="onboard-key" type="password" placeholder="relay-…" autocomplete="off" spellcheck="false">
+      <div class="form-error" id="onboard-error"></div>
+      <button class="btn btn-primary" type="submit">開始使用</button>
+      <div class="hint">金鑰只存在這台電腦的瀏覽器裡。</div>
+    </form>
+  </section>
+
+  <main id="chat">
+    <div id="scroll">
+      <div id="empty">
+        <div>
+          <h2>今天要在這頁做什麼？</h2>
+        </div>
+        <p>我看得到你目前開著的分頁。</p>
+        <button class="suggest" type="button" data-prompt="幫我整理這一頁的重點，用條列">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M3 4h10M3 8h10M3 12h6"/></svg>
+          <span>摘要這一頁<small>三十秒看完長文</small></span>
+        </button>
+        <button class="suggest" type="button" data-prompt="把這一頁的主要內容翻譯成繁體中文">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M2.5 4h7M6 2.5V4M4 4c.5 2.5 2.5 4.5 5 5.5M8 4c-.5 2.5-2.5 4.5-5 5.5M9 13.5l2.5-6 2.5 6M10 11.5h3"/></svg>
+          <span>翻譯成中文<small>保留原本的段落結構</small></span>
+        </button>
+        <button class="suggest" type="button" data-prompt="找出這一頁上所有的價格與方案，做成比較表">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.5" y="2.5" width="11" height="11" rx="2"/><path d="M2.5 6.5h11M6.5 6.5v7"/></svg>
+          <span>整理成表格<small>價格、規格、清單都行</small></span>
+        </button>
+      </div>
+      <div id="log"></div>
+    </div>
+    <form id="form">
+      <div class="composer">
+        <textarea id="input" rows="1" placeholder="要我在這頁做什麼？"></textarea>
+        <div class="composer-bar">
+          <select class="model" id="model" aria-label="模型">
+            <option value="claude-sonnet-5">Sonnet 5</option>
+            <option value="claude-opus-5">Opus 5</option>
+          </select>
+          <span class="spacer"></span>
+          <span class="kbd-hint">Enter 送出</span>
+          <button id="send" aria-label="送出">
+            <svg class="i-send" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 13V3M3.5 7.5L8 3l4.5 4.5"/></svg>
+            <svg class="i-stop" viewBox="0 0 16 16" fill="currentColor"><rect x="4" y="4" width="8" height="8" rx="1.5"/></svg>
+          </button>
+        </div>
+      </div>
+    </form>
+  </main>
+
+  <dialog id="settings">
+    <div class="dlg-head">
+      <span>設定</span>
+      <button class="icon-btn" type="button" id="close-settings" aria-label="關閉">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+      </button>
+    </div>
+    <div class="dlg-body">
+      <div class="row">
+        <label class="field-label" for="key">存取金鑰</label>
+        <div class="key-row">
+          <input class="input" id="key" type="password" autocomplete="off" spellcheck="false">
+          <button class="btn btn-ghost" type="button" id="toggle-key">顯示</button>
+        </div>
+      </div>
+      <div class="divider"></div>
+      <button class="btn btn-ghost danger" type="button" id="logout">移除金鑰並登出</button>
+    </div>
+  </dialog>
+
+  <script type="module" src="sidepanel.js"></script>
+</body>
+</html>

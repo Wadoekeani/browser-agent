@@ -1,0 +1,6 @@
+node_modules/
+# esbuild 產物：npm run build 產生
+extension/sidepanel.js
+# Claude Code 工作筆記
+.claude/
+.DS_Store

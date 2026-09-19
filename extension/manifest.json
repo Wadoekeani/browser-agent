@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "Browser Agent",
+  "version": "0.1.0",
+  "description": "在側邊欄跟 Claude 對話，它能讀取並操作目前分頁。",
+  "action": { "default_title": "Browser Agent" },
+  "background": { "service_worker": "background.js" },
+  "side_panel": { "default_path": "sidepanel.html" },
+  "permissions": ["sidePanel", "storage", "scripting", "tabs"],
+  "host_permissions": ["<all_urls>"]
+}
