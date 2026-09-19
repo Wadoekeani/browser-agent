@@ -111,9 +111,8 @@ const DEFAULT_SUGGESTIONS: { icon: ReactNode; key: "summary" | "translate" | "ta
   { icon: <IconTable />, key: "table" },
 ];
 
-// 依頁面產生的建議只差在圖示。建議是看網頁內容產生的（網頁可以操弄它），所以點擊只把完整指令
-// 填進輸入框，使用者看過、自己按送出才算數
-let fillComposer = (_text: string) => {};
+// 依頁面產生的建議只差在圖示。點擊直接送出（使用者選的）；建議是看網頁內容產生的、網頁可以操弄它，
+// 所以送出後照樣走 tools.ts 的確認卡（跨網站、不可逆動作），不因為是點建議就放行
 function Empty() {
   const { list, sub, loading } = S.suggest;
   const items: (Suggestion & { icon: ReactNode })[] = list
@@ -127,7 +126,7 @@ function Empty() {
       <p id="empty-sub">{sub ?? t("empty.canSee")}</p>
       <div id="suggestions" className="suggest-list">
         {items.map((s, i) => (
-          <button key={i} type="button" className="suggest" title={s.prompt} onClick={() => fillComposer(s.prompt)}>
+          <button key={i} type="button" className="suggest" title={s.prompt} onClick={() => send(s.prompt, { fromPage: !!list })}>
             {s.icon}
             <span>{s.title}<small>{s.subtitle}</small></span>
           </button>
@@ -144,7 +143,6 @@ function Composer() {
   const [text, setText] = useState("");
   const [slash, setSlash] = useState<{ items: SlashItem[]; index: number } | null>(null);
   const input = useRef<HTMLTextAreaElement>(null);
-  fillComposer = (v) => { setText(v); setSlash(null); requestAnimationFrame(() => input.current?.focus()); };
   const menu = useRef<HTMLDivElement>(null);
   useEffect(() => { if (slash) menu.current?.children[slash.index]?.scrollIntoView({ block: "nearest" }); }, [slash]);
 

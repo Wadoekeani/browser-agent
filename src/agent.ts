@@ -126,8 +126,8 @@ let unpend = () => {};
 
 // stats 由呼叫端傳入並累加，中途出錯或按停止也看得到已經花掉的量。
 // modelOverride：/技能 指定的模型（只有 Anthropic 會給）
-// typed：使用者自己打的那行字（不含展開的技能與選取內容），只有它裡面的網址算「使用者指定的」
-async function runApi(userText: string, typed: string, stats: Stats, signal: AbortSignal, modelOverride: string | null) {
+// typed：使用者自己打的那行字（不含展開的技能與選取內容），只有它裡面的網址算「使用者指定的」；null＝依頁面產生的建議，整則算不可信
+async function runApi(userText: string, typed: string | null, stats: Stats, signal: AbortSignal, modelOverride: string | null) {
   const provider: ProviderId = S.provider;
   if (!S.consent) { showView(); throw new Error(t("error.noConsent")); }
   if (!ready()) { showView(); throw new Error(t("error.noKey")); }
@@ -142,8 +142,8 @@ async function runApi(userText: string, typed: string, stats: Stats, signal: Abo
   const startTab = await activeTab();
   const tabId = startTab.id!;
   // 這則對話裡已經有網頁來的內容（之前讀過頁面、這則或之前附了選取文字）＝一開始就算不可信
-  const tainted = S.messages.some((m) => (typeof m.content === "string" ? m.content.includes("\n<page_selection chars=") : m.content.some((b) => b.type === "tool_use" && (b.name === "read_page" || b.name === "navigate"))));
-  const task = newTask(startTab.url, typed, tainted);
+  const tainted = typed === null || S.messages.some((m) => (typeof m.content === "string" ? m.content.includes("\n<page_selection chars=") : m.content.some((b) => b.type === "tool_use" && (b.name === "read_page" || b.name === "navigate"))));
+  const task = newTask(startTab.url, typed ?? "", tainted);
 
   let capped = false;
   while (true) {
@@ -212,7 +212,8 @@ function addStats(stats: Stats) {
 // 內建指令：選到就直接執行，不送給模型；名稱保留，技能不能用
 export const COMMANDS = [{ name: "clear", descKey: "command.clear" as Key, run: () => resetChat() }];
 
-export async function send(raw: string) {
+// fromPage：依頁面產生的建議（網頁能影響它的文字），裡面的網址不算使用者指定的
+export async function send(raw: string, { fromPage = false } = {}) {
   if (controller) { controller.abort(); return; }
   const text = raw.trim();
   if (!text) return;
@@ -229,7 +230,7 @@ export async function send(raw: string) {
     // /技能 的 model 只在 Anthropic 生效（例如 model: haiku 讓摘要類技能改用便宜的模型）
     const override = S.provider === "anthropic" ? skillModel(slashSkill(text, S.skills)?.model) : null;
     const expanded = expandSlash(text, S.skills);
-    await runApi(selection ? withSelection(expanded, selection, S.pageChars) : expanded, text, stats, signal, override);
+    await runApi(selection ? withSelection(expanded, selection, S.pageChars) : expanded, fromPage ? null : text, stats, signal, override);
   } catch (err: any) {
     if (S.messages.length > start) S.messages.length = start; // 丟掉這一輪，避免留下沒配對 tool_result 的 tool_use
     S.log = S.log.filter((x) => x.kind !== "pending");
