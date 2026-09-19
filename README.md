@@ -13,6 +13,8 @@ A Claude agent that lives in Chrome's side panel. It reads the page you're on, c
 
 - Streams replies with Markdown (tables, code blocks with copy buttons) and collapsible thinking summaries
 - Page tools: `read_page`, `navigate`, `click`, `type`
+- Skills: reusable instructions in the same `SKILL.md` format as Claude Code — type `/` to pick one, or let the model load one when it fits
+- Slash commands: `/clear` resets the conversation
 - Runs entirely in the extension — no server of your own
 - Light and dark themes
 
@@ -36,6 +38,25 @@ npm run build        # outputs extension/sidepanel.js; use `npm run watch` while
 
 Open `chrome://extensions`, enable **Developer mode**, click **Load unpacked**, and pick the `extension/` folder. Click the toolbar icon to open the side panel.
 
+## Skills
+
+A skill is a Markdown file with `name` and `description` frontmatter, followed by instructions:
+
+```markdown
+---
+name: meeting-notes
+description: Turn a meeting page into decisions, action items and owners
+---
+
+1. Read the whole page with read_page.
+2. List decisions, then a table of action items with owner and due date.
+```
+
+Manage skills in **Settings → Skills** (create, edit, import `.md`, export). Claude Code `SKILL.md` files import as-is.
+Only names and descriptions go into the system prompt; the model calls `use_skill` to load the full instructions when it needs them. Typing `/name` in the composer attaches that skill's instructions directly.
+
+Skills are prompts — read one before importing it.
+
 ## Security notes
 
 - Web page content is untrusted. The system prompt tells the model to ignore instructions found on pages and to confirm before irreversible actions (submitting forms, payments, deleting), but prompt injection is not a solved problem — watch what it does on sensitive sites.
@@ -47,6 +68,7 @@ Open `chrome://extensions`, enable **Developer mode**, click **Load unpacked**, 
 |---|---|
 | `src/sidepanel.js` | Agent loop, tool implementations, UI wiring |
 | `src/shared.js` | System prompt and tool definitions |
+| `src/skills.js` | `SKILL.md` parsing / serialization (`npm run check` runs its self-check) |
 | `extension/` | Manifest, side panel HTML/CSS, service worker (load this folder in Chrome) |
 
 To add a tool: add its schema to `tools` in `src/shared.js` and a `case` in `runTool` in `src/sidepanel.js`.

@@ -39,4 +39,9 @@ export const tools = [
       required: ["selector", "text"],
     },
   },
+  {
+    name: "use_skill",
+    description: "載入某個技能的完整指示。系統提示詞的「可用技能」清單裡有適合這次任務的技能時，先呼叫它再照指示做。",
+    input_schema: { type: "object", properties: { name: { type: "string", description: "技能名稱" } }, required: ["name"] },
+  },
 ];

@@ -2,6 +2,9 @@ import Anthropic from "@anthropic-ai/sdk";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
 import { SYSTEM, tools } from "./shared.js";
+import { parseSkill, serializeSkill, skillsPrompt, expandSlash, cleanName } from "./skills.js";
+
+let skills = []; // [{ name, description, body }]，存在 chrome.storage.local
 
 const $ = (id) => document.getElementById(id);
 const MAX_CHARS = 200_000;
@@ -33,6 +36,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function runTool(name, input) {
   const tab = await activeTab();
   switch (name) {
+    case "use_skill": {
+      const skill = skills.find((s) => s.name === input.name);
+      if (!skill) throw new Error(`沒有名為「${input.name}」的技能，可用的有：${skills.map((s) => s.name).join("、") || "（無）"}`);
+      return skill.body;
+    }
     case "read_page": {
       const body = await inPage(tab.id, (sel, html) => {
         const el = sel ? document.querySelector(sel) : document.body;
@@ -256,7 +264,7 @@ async function runApi(userText) {
     let block = null; // 目前正在串流的思考／文字區塊
     const stream = client.beta.messages.stream(
       {
-        model, max_tokens: 64000, system: SYSTEM, tools, messages,
+        model, max_tokens: 64000, system: SYSTEM + skillsPrompt(skills), tools, messages,
         // Sonnet 5 / Opus 5 預設不回傳思考內容，summarized 才看得到摘要
         thinking: { type: "adaptive", display: "summarized" },
         // 頂層 cache_control：自動把最後一個可快取區塊設成快取點，多輪對話重送的歷史只算快取讀取價
@@ -310,7 +318,7 @@ async function runApi(userText) {
 
 // ---------- 事件 ----------
 
-const saved = await chrome.storage.local.get(["key", "model"]);
+const saved = await chrome.storage.local.get(["key", "model", "skills"]);
 if (saved.key) $("key").value = saved.key;
 if (saved.model && [...$("model").options].some((o) => o.value === saved.model)) $("model").value = saved.model;
 
@@ -370,6 +378,167 @@ for (const b of document.querySelectorAll(".suggest")) {
   b.addEventListener("click", () => { $("input").value = b.dataset.prompt; $("form").requestSubmit(); });
 }
 
+// ---------- 技能 ----------
+
+const EXAMPLE_SKILL = {
+  name: "頁面摘要",
+  description: "把目前頁面整理成「一句話結論＋重點＋可行動事項」的固定格式",
+  body: "1. 用 read_page 讀整頁。\n2. 第一行用粗體寫一句話結論。\n3. 接著用條列寫 3–5 個重點，每點不超過 30 字。\n4. 最後一節「可以做的事」，列出讀者看完能採取的行動；沒有就寫「無」。",
+};
+skills = saved.skills ?? [EXAMPLE_SKILL]; // 第一次安裝放一個範例，讓人看得懂格式
+
+async function saveSkills() {
+  await chrome.storage.local.set({ skills });
+  renderSkillList();
+}
+
+function skillItem(cls, skill) {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = cls;
+  const name = document.createElement("strong");
+  name.textContent = `/${skill.name}`;
+  const desc = document.createElement("small");
+  desc.textContent = skill.description || "（沒有說明）";
+  b.append(name, desc);
+  return b;
+}
+
+function renderSkillList() {
+  const list = $("skill-list");
+  list.replaceChildren();
+  if (!skills.length) {
+    list.innerHTML = '<div class="skill-empty">還沒有技能</div>';
+    return;
+  }
+  for (const skill of skills) {
+    const row = skillItem("skill-row", skill);
+    row.addEventListener("click", () => openEditor(skill));
+    list.append(row);
+  }
+}
+renderSkillList();
+
+let editing = null; // 正在編輯的技能；null＝新增
+function openEditor(skill) {
+  editing = skill;
+  $("skill-title").textContent = skill ? "編輯技能" : "新增技能";
+  $("skill-name").value = skill?.name ?? "";
+  $("skill-desc").value = skill?.description ?? "";
+  $("skill-body").value = skill?.body ?? "";
+  $("skill-error").textContent = "";
+  $("skill-delete").hidden = $("skill-export").hidden = !skill;
+  $("skill-editor").showModal();
+  $("skill-name").focus();
+}
+
+$("skill-new").addEventListener("click", () => openEditor(null));
+$("skill-close").addEventListener("click", () => $("skill-editor").close());
+
+$("skill-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const skill = { name: cleanName($("skill-name").value), description: $("skill-desc").value.trim(), body: $("skill-body").value.trim() };
+  if (!skill.name || !skill.body) { $("skill-error").textContent = "名稱與指示都要填"; return; }
+  if (COMMANDS.some((c) => c.name === skill.name)) { $("skill-error").textContent = `「${skill.name}」是內建指令，換個名稱`; return; }
+  if (skills.some((s) => s.name === skill.name && s !== editing)) { $("skill-error").textContent = `已經有叫「${skill.name}」的技能`; return; }
+  if (editing) skills[skills.indexOf(editing)] = skill;
+  else skills.push(skill);
+  await saveSkills();
+  $("skill-editor").close();
+});
+
+$("skill-delete").addEventListener("click", async () => {
+  if (!confirm(`刪除技能「${editing.name}」？`)) return;
+  skills = skills.filter((s) => s !== editing);
+  await saveSkills();
+  $("skill-editor").close();
+});
+
+$("skill-export").addEventListener("click", () => {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([serializeSkill(editing)], { type: "text/markdown" }));
+  a.download = `${editing.name}.md`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+});
+
+$("skill-import").addEventListener("change", async (e) => {
+  const skipped = [];
+  for (const file of e.target.files) {
+    // Claude Code 的技能檔名一律是 SKILL.md，那種就只能靠 frontmatter 裡的 name
+    const skill = parseSkill(await file.text(), file.name.replace(/\.md$/i, "").replace(/^SKILL$/i, ""));
+    if (!skill.name || !skill.body) { skipped.push(file.name); continue; }
+    const i = skills.findIndex((s) => s.name === skill.name);
+    if (i === -1) skills.push(skill);
+    else if (confirm(`已經有「${skill.name}」，要用匯入的版本覆蓋嗎？`)) skills[i] = skill;
+  }
+  e.target.value = "";
+  await saveSkills();
+  if (skipped.length) alert(`這些檔案讀不到名稱或內容，已略過：${skipped.join("、")}`);
+});
+
+// 內建指令：選到就直接執行，不送給模型；名稱保留，技能不能用
+const COMMANDS = [
+  { name: "clear", description: "清空對話，重新開始", command: true, run: () => $("reset").click() },
+];
+
+// 輸入框開頭打 / 跳出選單（內建指令＋技能）：↑↓ 選、Enter／Tab 帶入、Esc 關閉
+let slashItems = [];
+let slashIndex = 0;
+
+function closeSlash() { $("slash").hidden = true; slashItems = []; }
+
+function renderSlash() {
+  const menu = $("slash");
+  menu.replaceChildren();
+  if (!slashItems.length) {
+    menu.innerHTML = '<div class="slash-empty">找不到符合的指令或技能</div>';
+  }
+  slashItems.forEach((skill, i) => {
+    const item = skillItem(skill.command ? "slash-item command" : "slash-item", skill);
+    item.setAttribute("role", "option");
+    item.setAttribute("aria-selected", String(i === slashIndex));
+    item.addEventListener("mousedown", (e) => { e.preventDefault(); pickSlash(skill); });
+    menu.append(item);
+  });
+  menu.hidden = false;
+  menu.children[slashIndex]?.scrollIntoView({ block: "nearest" });
+}
+
+function pickSlash(skill) {
+  if (skill.command) {
+    $("input").value = "";
+    closeSlash();
+    return skill.run();
+  }
+  $("input").value = `/${skill.name} `;
+  closeSlash();
+  $("input").focus();
+}
+
+$("input").addEventListener("input", () => {
+  const m = $("input").value.match(/^\/(\S*)$/);
+  if (!m) return closeSlash();
+  const q = m[1].toLowerCase();
+  slashItems = [...COMMANDS, ...skills].filter((s) => s.name.toLowerCase().includes(q) || s.description.toLowerCase().includes(q));
+  slashIndex = 0;
+  renderSlash();
+});
+$("input").addEventListener("blur", closeSlash);
+
+$("input").addEventListener("keydown", (e) => {
+  if ($("slash").hidden || e.isComposing) return;
+  if (e.key === "Escape") { closeSlash(); e.preventDefault(); }
+  else if (!slashItems.length) return;
+  else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    slashIndex = (slashIndex + (e.key === "ArrowDown" ? 1 : -1) + slashItems.length) % slashItems.length;
+    renderSlash();
+  } else if (e.key === "Enter" || e.key === "Tab") pickSlash(slashItems[slashIndex]);
+  else return;
+  e.preventDefault();
+  e.stopImmediatePropagation(); // 別讓下面的 Enter 送出
+});
+
 $("input").addEventListener("keydown", (e) => {
   if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); $("form").requestSubmit(); }
 });
@@ -379,6 +548,8 @@ $("form").addEventListener("submit", async (e) => {
   if (controller) { controller.abort(); return; }
   const text = $("input").value.trim();
   if (!text) return;
+  const command = COMMANDS.find((c) => text === `/${c.name}`);
+  if (command) { $("input").value = ""; return command.run(); }
   $("input").value = "";
   addMsg("user", text);
   document.body.dataset.busy = "";
@@ -386,7 +557,7 @@ $("form").addEventListener("submit", async (e) => {
   controller = new AbortController();
   const start = messages.length;
   try {
-    await runApi(text);
+    await runApi(expandSlash(text, skills));
   } catch (err) {
     if (messages.length > start) messages.length = start; // 丟掉這一輪，避免留下沒配對 tool_result 的 tool_use
     document.querySelectorAll(".pending").forEach((el) => el.remove());

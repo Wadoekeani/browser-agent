@@ -263,6 +263,40 @@
   .key-row .input { flex: 1; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; }
   .divider { height: 1px; background: var(--line); margin: 2px 0; }
   .danger { color: var(--err); }
+  dialog { max-height: calc(100vh - 32px); overflow-y: auto; }
+  #skill-editor { width: min(440px, calc(100vw - 24px)); }
+  .dlg-foot { display: flex; gap: 6px; }
+  .skill-body { height: 220px; padding: 8px 10px; resize: vertical; font: 12.5px/1.55 ui-monospace, "SF Mono", Menlo, monospace; }
+  .row-head { display: flex; align-items: center; gap: 4px; }
+  .row-head .field-label { flex: 1; }
+  .link-btn { border: 0; background: none; padding: 2px 6px; border-radius: 6px; color: var(--accent); font-size: 12px; font-weight: 500; cursor: pointer; }
+  .link-btn:hover { background: var(--accent-soft); }
+  .skill-list { display: grid; gap: 4px; }
+  .skill-row {
+    display: grid; gap: 1px; width: 100%; text-align: left; padding: 7px 10px; border-radius: 8px;
+    border: 1px solid var(--line); background: var(--surface);
+  }
+  .skill-row:hover { border-color: var(--accent); }
+  .skill-row strong { font: 500 12.5px ui-monospace, "SF Mono", Menlo, monospace; }
+  .skill-row small, .skill-empty { color: var(--faint); font-size: 12px; }
+  .skill-row small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .hint code { font: 11.5px ui-monospace, monospace; padding: 0 4px; border-radius: 4px; background: var(--surface-2); }
+
+  /* 輸入框的 / 技能選單 */
+  #form { position: relative; }
+  .slash {
+    position: absolute; left: 12px; right: 12px; bottom: calc(100% - 4px); max-height: 240px; overflow-y: auto;
+    background: var(--surface); border: 1px solid var(--line-strong); border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.12); padding: 4px; z-index: 10;
+  }
+  .slash-item { display: grid; gap: 1px; width: 100%; text-align: left; padding: 6px 9px; border: 0; border-radius: 7px; background: none; }
+  .slash-item[aria-selected=true] { background: var(--accent-soft); }
+  .slash-item strong { font: 500 12.5px ui-monospace, "SF Mono", Menlo, monospace; color: var(--accent); }
+  .slash-item small { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .slash-empty { padding: 8px 10px; color: var(--faint); font-size: 12px; }
+  .slash-item.command strong { color: var(--fg); }
+  .slash-item.command + .slash-item:not(.command) { margin-top: 5px; position: relative; }
+  .slash-item.command + .slash-item:not(.command)::before { content: ""; position: absolute; left: 6px; right: 6px; top: -3px; border-top: 1px solid var(--line); }
 </style>
 </head>
 <body data-view="chat">
@@ -320,6 +354,7 @@
       <div id="log"></div>
     </div>
     <form id="form">
+      <div class="slash" id="slash" role="listbox" hidden></div>
       <div class="composer">
         <textarea id="input" rows="1" placeholder="要我在這頁做什麼？"></textarea>
         <div class="composer-bar">
@@ -355,8 +390,50 @@
       </div>
       <div class="hint" id="provider"></div>
       <div class="divider"></div>
+      <div class="row">
+        <div class="row-head">
+          <span class="field-label">技能</span>
+          <label class="link-btn">匯入 .md<input type="file" id="skill-import" accept=".md,text/markdown" multiple hidden></label>
+          <button class="link-btn" type="button" id="skill-new">＋ 新增</button>
+        </div>
+        <div id="skill-list" class="skill-list"></div>
+        <div class="hint">輸入框打 <code>/</code> 指定技能，模型也會在適合時自己載入。格式與 Claude Code 的 SKILL.md 相容；匯入別人的技能前先看過內容。</div>
+      </div>
+      <div class="divider"></div>
       <button class="btn btn-ghost danger" type="button" id="logout">移除金鑰並登出</button>
     </div>
+  </dialog>
+
+  <dialog id="skill-editor">
+    <form id="skill-form" method="dialog">
+      <div class="dlg-head">
+        <span id="skill-title">新增技能</span>
+        <button class="icon-btn" type="button" id="skill-close" aria-label="關閉">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+        </button>
+      </div>
+      <div class="dlg-body">
+        <div class="row">
+          <label class="field-label" for="skill-name">名稱（輸入框打 /名稱 叫出）</label>
+          <input class="input" id="skill-name" required placeholder="例如：會議紀錄" autocomplete="off">
+        </div>
+        <div class="row">
+          <label class="field-label" for="skill-desc">說明（模型靠這句判斷什麼時候該用）</label>
+          <input class="input" id="skill-desc" placeholder="例如：把會議頁面整理成決議、待辦、負責人" autocomplete="off">
+        </div>
+        <div class="row">
+          <label class="field-label" for="skill-body">指示</label>
+          <textarea class="input skill-body" id="skill-body" required placeholder="寫給模型的完整步驟，可以用 Markdown。&#10;&#10;1. 先用 read_page 讀整頁&#10;2. 找出決議與待辦&#10;3. 用表格列出負責人與期限"></textarea>
+        </div>
+        <div class="form-error" id="skill-error"></div>
+        <div class="dlg-foot">
+          <button class="btn btn-ghost danger" type="button" id="skill-delete">刪除</button>
+          <button class="btn btn-ghost" type="button" id="skill-export">匯出</button>
+          <span class="spacer"></span>
+          <button class="btn btn-primary" type="submit">儲存</button>
+        </div>
+      </div>
+    </form>
   </dialog>
 
   <script type="module" src="sidepanel.js"></script>
