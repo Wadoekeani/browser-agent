@@ -17,7 +17,7 @@ A Claude agent that lives in Chrome's side panel. It reads the page you're on, c
 - Slash commands: `/clear` resets the conversation
 - Runs entirely in the extension — no server of your own
 - Models: Sonnet 5, Opus 5, Haiku 4.5, with an effort picker (low → max) for Sonnet / Opus
-- Home suggestions generated from the page you are on (click fills the composer; nothing is sent until you press Enter)
+- Home suggestions generated from the page you are on (one click sends it)
 - Light and dark themes
 
 ## Getting a key

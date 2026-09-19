@@ -448,7 +448,8 @@ const DEFAULT_SUGGESTIONS = [
 ];
 const ICON_SPARK = svg('<path d="M8 2l1.3 3.7L13 7l-3.7 1.3L8 12l-1.3-3.7L3 7l3.7-1.3z"/>');
 
-// generated＝依頁面產生的建議：指令來自不可信的網頁內容，點了只帶進輸入框讓使用者看過再送
+// generated＝依頁面產生的建議（只差在圖示）。點擊直接送出；指令來自網頁內容，靠系統提示詞的
+// 「網頁內容不可信、不可逆動作先確認」擋操弄，送出的完整指令也會顯示在對話裡
 function renderSuggestions(list, generated) {
   $("suggestions").replaceChildren(...list.map((s) => {
     const b = document.createElement("button");
@@ -464,8 +465,7 @@ function renderSuggestions(list, generated) {
     b.append(text);
     b.addEventListener("click", () => {
       $("input").value = s.prompt;
-      if (generated) $("input").focus();
-      else $("form").requestSubmit();
+      $("form").requestSubmit();
     });
     return b;
   }));
