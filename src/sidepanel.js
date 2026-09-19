@@ -7,8 +7,8 @@ import { parseSkill, serializeSkill, skillsPrompt, expandSlash, cleanName } from
 let skills = []; // [{ name, description, body }]，存在 chrome.storage.local
 
 const $ = (id) => document.getElementById(id);
-// 一次最多回傳的字數。中文約 1 字 1 token：整頁維基 5.5 萬字＝5 萬 token，一次摘要就要好幾塊台幣
-const PAGE_CHARS = 8000;
+// 讀頁一次最多回傳的字數（設定頁可調）。中文約 1 字 1 token：整頁維基 5.5 萬字＝5 萬 token，一次摘要就要好幾塊台幣
+let pageChars = 8000;
 
 // ---------- 分頁操作 ----------
 
@@ -65,7 +65,7 @@ async function runTool(name, input) {
       }, [input.selector ?? null, !!input.html]);
       if (body == null) throw new Error(`找不到元素：${input.selector}`);
       const offset = Math.max(0, Math.floor(input.offset ?? 0));
-      const part = body.slice(offset, offset + PAGE_CHARS);
+      const part = body.slice(offset, offset + pageChars);
       const end = offset + part.length;
       const note = end < body.length
         ? `\n\n[第 ${offset}–${end} 字，全文 ${body.length} 字。一般摘要讀到這裡就夠；確實需要後面的內容才用 offset=${end} 繼續讀。]`
@@ -344,7 +344,18 @@ async function runApi(userText) {
 
 // ---------- 事件 ----------
 
-const saved = await chrome.storage.local.get(["key", "model", "effort", "skills"]);
+const saved = await chrome.storage.local.get(["key", "model", "effort", "skills", "pageChars", "suggestOn"]);
+if (saved.pageChars) pageChars = saved.pageChars;
+$("page-chars").value = String(pageChars);
+$("suggest-on").checked = saved.suggestOn ?? true;
+$("page-chars").addEventListener("change", () => {
+  pageChars = Number($("page-chars").value);
+  chrome.storage.local.set({ pageChars });
+});
+$("suggest-on").addEventListener("change", () => {
+  chrome.storage.local.set({ suggestOn: $("suggest-on").checked });
+  scheduleSuggestions();
+});
 if (saved.key) $("key").value = saved.key;
 if (saved.model && [...$("model").options].some((o) => o.value === saved.model)) $("model").value = saved.model;
 
@@ -504,6 +515,7 @@ async function refreshSuggestions() {
   };
   let tab;
   try { tab = await activeTab(); } catch { return done(DEFAULT_SUGGESTIONS, false, "我看得到你目前開著的分頁。"); }
+  if (!$("suggest-on").checked) return done(DEFAULT_SUGGESTIONS, false, "我看得到你目前開著的分頁。");
   if (!/^https?:/.test(tab.url ?? "")) return done(DEFAULT_SUGGESTIONS, false, "打開任何網頁，我會依內容給建議。");
   const label = `依「${(tab.title || new URL(tab.url).hostname).slice(0, 24)}」產生的建議`;
   const cached = suggestionCache.get(tab.url);
