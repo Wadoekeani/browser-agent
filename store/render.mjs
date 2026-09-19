@@ -55,19 +55,21 @@ async function icons() {
 
 // ---------- 2. 宣傳圖塊（官方建議：飽和色、填滿、少字、縮一半還看得懂） ----------
 async function promo() {
+  const badge = fs.readFileSync(path.join(STORE, "../docs/supported-by-iosoftware.svg"), "utf8").replaceAll("#6b7280", "#fff");
   const bg = "linear-gradient(135deg,#1E3A8A 0%,#2563EB 55%,#0EA5E9 100%)";
   const panelShot = path.join(STORE, "screenshots/_panel-summary.png");
   const hasPanel = fs.existsSync(panelShot);
   const small = `<style>body{margin:0;width:440px;height:280px;background:${bg};${FONT}color:#fff;display:flex;flex-direction:column;justify-content:center;padding:0 36px;box-sizing:border-box}
-    .logo svg{width:72px;height:72px}h1{font-size:40px;margin:14px 0 6px;letter-spacing:-.5px}p{font-size:19px;margin:0;opacity:.92}</style>
-    <div class="logo">${logoSvg}</div><h1>Browser Agent</h1><p>AI that reads and works on your tab</p>`;
+    .logo svg{width:72px;height:72px}h1{font-size:40px;margin:14px 0 6px;letter-spacing:-.5px}p{font-size:19px;margin:0;opacity:.92}.badge{position:absolute;left:36px;bottom:20px;opacity:.8}.badge svg{display:block;height:18px;width:auto}</style>
+    <div class="logo">${logoSvg}</div><h1>Browser Agent</h1><p>AI that reads and works on your tab</p>
+    <div class="badge">${badge}</div>`;
   await shoot(small, 440, 280, path.join(STORE, "promo/small-440x280.png"));
   const marquee = `<style>body{margin:0;width:1400px;height:560px;background:${bg};${FONT}color:#fff;overflow:hidden;position:relative}
     .l{position:absolute;left:96px;top:0;bottom:0;width:640px;display:flex;flex-direction:column;justify-content:center}
     .logo svg{width:96px;height:96px}h1{font-size:68px;margin:22px 0 12px;letter-spacing:-1px}p{font-size:28px;margin:0;opacity:.92;line-height:1.35}
     .shot{position:absolute;right:96px;top:56px;width:400px;border-radius:14px;box-shadow:0 30px 80px rgba(0,0,0,.35);overflow:hidden;background:#fff}
-    .shot img{display:block;width:400px}</style>
-    <div class="l"><div class="logo">${logoSvg}</div><h1>Browser Agent</h1><p>Chat in the side panel. It reads, clicks and fills in the page for you — with your own AI key.</p></div>
+    .shot img{display:block;width:400px}.badge{position:absolute;left:96px;bottom:40px;opacity:.8}.badge svg{display:block;height:28px;width:auto}</style>
+    <div class="l"><div class="logo">${logoSvg}</div><h1>Browser Agent</h1><p>Chat in the side panel. It reads, clicks and fills in the page for you — with your own AI key.</p></div><div class="badge">${badge}</div>
     ${hasPanel ? `<div class="shot"><img src="${dataUri(panelShot)}"></div>` : ""}`;
   await shoot(marquee, 1400, 560, path.join(STORE, "promo/marquee-1400x560.png"));
 }

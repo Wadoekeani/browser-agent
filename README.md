@@ -138,7 +138,7 @@ Only names and descriptions go into the system prompt; the model calls `use_skil
 - going to another site, by navigating or by clicking a link, unless it's the site the task started on, a site you named in your message, or one you already allowed in this task. The card shows the full URL, query string included;
 - saving a memory once the conversation contains web content (a page it read, a PDF, a selection).
 
-Suggestions generated from the page only fill the input box; you send them yourself. Links in replies show their real domain next to the text.
+Clicking a suggestion sends it right away. Suggestions generated from the page are written after reading page content, so a page can influence them: sites they mention don't count as sites you named, and what they trigger still goes through the same confirmation cards. Links in replies show their real domain next to the text.
 
 **Output and files.** Model replies are rendered with DOMPurify. Images, media, SVG, iframes, forms and inline styles are stripped, so a page can't get the model to leak your conversation through an image URL. Generated files are plain-text formats only (`csv`, `json`, `md`, …), and CSV/TSV cells that start like a spreadsheet formula are neutralized.
 
@@ -196,3 +196,7 @@ Issues and PRs are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md). Keep PRs 
 ## License
 
 [MIT](LICENSE). Browser Agent is an independent project, not affiliated with Anthropic, OpenAI or Google.
+
+---
+
+<p align="center"><a href="https://iosoftware.ai"><img src="docs/supported-by-iosoftware.svg" alt="Supported by io Software" height="32"></a></p>

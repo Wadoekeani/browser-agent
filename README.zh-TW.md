@@ -140,7 +140,7 @@ description: 把會議頁面整理成決議、待辦事項與負責人
 - 前往其他網站（navigate 或點連結都算），除非是任務開始時的網站、你在訊息裡提到的網站，或這次任務已經允許過的。卡片顯示完整網址，包含查詢字串；
 - 對話裡已經有網頁內容（讀過的頁面、PDF、選取文字）之後寫入記憶。
 
-依頁面產生的首頁建議點了只會填進輸入框，要你自己送出。回覆裡的連結旁邊會標示真正的網域。
+首頁建議點了直接送出。依頁面產生的建議是讀過網頁內容才寫的，網頁可以影響它：它提到的網站不算你指定的，觸發的動作照樣要過上面的確認卡。回覆裡的連結旁邊會標示真正的網域。
 
 **輸出與檔案。** 模型回覆用 DOMPurify 消毒後才顯示，圖片、媒體、SVG、iframe、表單、行內樣式一律拿掉，網頁沒辦法誘導模型用圖片網址把對話外洩。產生的檔案只限純文字格式（`csv`、`json`、`md`……），CSV／TSV 裡看起來像試算表公式開頭的儲存格會被中和。
 
@@ -182,3 +182,7 @@ npm run test:e2e   # 打包後用 Playwright 載入擴充功能，模型 API 用
 ## 授權
 
 [MIT](LICENSE)。Browser Agent 是獨立專案，與 Anthropic、OpenAI、Google 無隸屬或背書關係。
+
+---
+
+<p align="center"><a href="https://iosoftware.ai"><img src="docs/supported-by-iosoftware.svg" alt="Supported by io Software" height="32"></a></p>

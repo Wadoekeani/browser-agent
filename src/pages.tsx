@@ -271,6 +271,9 @@ export function SettingsPage({ nav }: { nav: Nav }) {
           }} />
         </label>
       </div>
+      <a className="supported-by" href="https://iosoftware.ai" target="_blank" rel="noopener noreferrer">
+        <img src="icons/supported-by-iosoftware.svg" alt="Supported by io Software" />
+      </a>
     </Page>
   );
 }
