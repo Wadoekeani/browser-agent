@@ -62,7 +62,9 @@ Skills are prompts — read one before importing it.
 
 ## Security notes
 
-- Web page content is untrusted. The system prompt tells the model to ignore instructions found on pages and to confirm before irreversible actions (submitting forms, payments, deleting), but prompt injection is not a solved problem — watch what it does on sensitive sites.
+- Web page content is untrusted. The system prompt tells the model to ignore instructions found on pages, but prompt injection is not a solved problem — watch what it does on sensitive sites.
+- Clicks that look irreversible (labels like pay / buy / delete / submit, or submitting a form with several fields or a password) pop up a confirmation in the extension itself, so a page can't talk the model out of asking. Single-field forms such as search boxes are not asked about. This is a keyword heuristic, not a guarantee.
+- Each task stops after 30 tool steps, and every reply shows its token usage (plus the actual NT$ spent when using a fluxRelay key).
 - Model output is sanitized with DOMPurify before rendering. Images, media, forms and inline styles are stripped, so a page can't trick the model into leaking the conversation through an image URL.
 
 ## Project layout

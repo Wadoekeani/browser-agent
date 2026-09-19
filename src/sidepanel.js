@@ -3,7 +3,7 @@ import { marked } from "marked";
 import DOMPurify from "dompurify";
 import { SYSTEM, tools, MEMORY_TOOLS } from "./shared.js";
 import { memoryPrompt, addMemory, forgetMemory } from "./memory.js";
-import { listElements } from "./elements.js";
+import { listElements, inspectTarget } from "./elements.js";
 import { parseSkill, serializeSkill, skillsPrompt, expandSlash, cleanName } from "./skills.js";
 
 let skills = []; // [{ name, description, body }]，存在 chrome.storage.local
@@ -55,6 +55,16 @@ function target(input) {
 const notFound = (input) => new Error(input.ref != null
   ? `找不到編號 ${input.ref} 的元素，頁面可能已變動，請重新 read_page elements=true`
   : `找不到元素：${input.selector}`);
+
+// 可能不可逆的點擊／送出先問使用者；判斷在 elements.js 的 inspectTarget
+async function guard(tabId, input, submitting) {
+  const info = await inPage(tabId, inspectTarget, [target(input), submitting]);
+  if (!info) throw notFound(input);
+  const what = submitting ? "送出表單" : "點擊";
+  if (info.risky && !confirm(`Agent 要${what}「${info.label}」。\n\n這可能是送出、付款或刪除這類不可逆的動作，允許嗎？`)) {
+    throw new Error("使用者拒絕了這個動作。不要換方法重試，停下來問使用者要怎麼做。");
+  }
+}
 
 async function runTool(name, input) {
   const tab = await activeTab();
@@ -109,6 +119,7 @@ async function runTool(name, input) {
       return `已前往 ${input.url}`;
     }
     case "click": {
+      await guard(tab.id, input, false);
       const ok = await inPage(tab.id, (sel) => {
         const el = document.querySelector(sel);
         if (!el) return false;
@@ -121,6 +132,7 @@ async function runTool(name, input) {
       return "已點擊";
     }
     case "type": {
+      if (input.submit) await guard(tab.id, input, true);
       const ok = await inPage(tab.id, (sel, text, submit) => {
         const el = document.querySelector(sel);
         if (!el) return null;
@@ -336,7 +348,11 @@ function makeClient(apiKey) {
     : new Anthropic({ baseURL: GATEWAY, apiKey: null, authToken: apiKey, dangerouslyAllowBrowser: true });
 }
 
-async function runApi(userText) {
+// 一次任務最多幾輪工具呼叫：模型卡在同一個按鈕反覆點時會一直花錢
+const MAX_STEPS = 30; // ponytail: 固定值，有人需要再搬進設定頁
+
+// stats 由呼叫端傳入並累加，中途出錯或按停止也看得到已經花掉的量
+async function runApi(userText, stats) {
   const apiKey = $("key").value.trim();
   const model = $("model").value.trim();
   if (!apiKey) { showView(); throw new Error("請先輸入存取金鑰"); }
@@ -348,6 +364,7 @@ async function runApi(userText) {
   const system = SYSTEM + skillsPrompt(skills) + (memoryOn ? memoryPrompt(memories) : "");
   const turnTools = memoryOn ? tools : tools.filter((t) => !MEMORY_TOOLS.includes(t.name));
 
+  let capped = false;
   while (true) {
     controller.signal.throwIfAborted();
     const unpend = pending();
@@ -363,6 +380,8 @@ async function runApi(userText) {
         }),
         // 頂層 cache_control：自動把最後一個可快取區塊設成快取點，多輪對話重送的歷史只算快取讀取價
         cache_control: { type: "ephemeral" },
+        // 到步數上限：這一輪只准用文字回報進度
+        ...(capped ? { tool_choice: { type: "none" } } : {}),
       },
       { signal: controller.signal },
     );
@@ -387,6 +406,11 @@ async function runApi(userText) {
       block?.finish();
     }
 
+    const u = msg.usage;
+    stats.input += u.input_tokens + (u.cache_read_input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0);
+    stats.cached += u.cache_read_input_tokens ?? 0;
+    stats.output += u.output_tokens;
+
     if (msg.stop_reason === "refusal") throw new Error("模型拒絕了這個請求");
     messages.push({ role: "assistant", content: msg.content });
     if (msg.stop_reason === "pause_turn") continue;
@@ -406,8 +430,23 @@ async function runApi(userText) {
         results.push({ type: "tool_result", tool_use_id: u.id, content: e.message, is_error: true });
       }
     }
+    stats.steps++;
+    if (stats.steps >= MAX_STEPS) {
+      capped = true;
+      results.push({ type: "text", text: `（系統：已達單次任務 ${MAX_STEPS} 步的上限。停止操作，用幾句話告訴使用者做到哪裡、還差什麼；使用者回覆後可以接著做。）` });
+    }
     messages.push({ role: "user", content: results });
   }
+}
+
+const kTok = (n) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n));
+function addStats(stats, spent) {
+  if (!stats.input) return;
+  const parts = [];
+  if (stats.steps) parts.push(`${stats.steps} 步`);
+  parts.push(`輸入 ${kTok(stats.input)}${stats.cached ? `（快取 ${kTok(stats.cached)}）` : ""}`, `輸出 ${kTok(stats.output)} token`);
+  if (spent > 0) parts.push(`NT$ ${spent.toFixed(2)}`);
+  addMsg("stats", parts.join(" · ")).title = "這次任務的用量；快取讀取的輸入只算一成價";
 }
 
 // ---------- 事件 ----------
@@ -431,6 +470,7 @@ if (saved.model && [...$("model").options].some((o) => o.value === saved.model))
 
 // fluxRelay 金鑰才有的額外功能：右上角餘額（Anthropic 金鑰查不到，直接隱藏）
 const LOW_BALANCE = 50; // 新台幣
+let lastBalance = null; // 算「這次任務花多少」用
 async function refreshBalance() {
   const key = $("key").value;
   const chip = $("balance");
@@ -439,6 +479,7 @@ async function refreshBalance() {
     const res = await fetch(`${GATEWAY}/api/v1/relay/me/usage`, { headers: { authorization: `Bearer ${key}` } });
     if (!res.ok) throw new Error(res.status);
     const u = await res.json();
+    lastBalance = u.balance;
     chip.textContent = `NT$ ${u.balance.toLocaleString("en-US", { maximumFractionDigits: u.balance < 100 ? 2 : 0 })}`;
     chip.title = `fluxRelay 餘額\n近 ${u.window_days} 天花費 NT$ ${u.spend_twd}，${u.requests} 次請求\n點擊前往儲值`;
     chip.classList.toggle("low", u.balance < LOW_BALANCE);
@@ -833,8 +874,10 @@ $("form").addEventListener("submit", async (e) => {
   $("send").setAttribute("aria-label", "停止");
   controller = new AbortController();
   const start = messages.length;
+  const stats = { steps: 0, input: 0, cached: 0, output: 0 };
+  const before = lastBalance;
   try {
-    await runApi(expandSlash(text, skills));
+    await runApi(expandSlash(text, skills), stats);
   } catch (err) {
     if (messages.length > start) messages.length = start; // 丟掉這一輪，避免留下沒配對 tool_result 的 tool_use
     document.querySelectorAll(".pending").forEach((el) => el.remove());
@@ -843,7 +886,8 @@ $("form").addEventListener("submit", async (e) => {
   } finally {
     controller = null;
     delete document.body.dataset.busy;
-    refreshBalance(); // 每輪結束更新扣款後的餘額
+    // 每輪結束更新扣款後的餘額；fluxRelay 的差額就是這次任務的實際花費（含加成），不用自己維護價目表
+    refreshBalance().then(() => addStats(stats, before != null && lastBalance != null ? before - lastBalance : 0));
     $("send").setAttribute("aria-label", "送出");
   }
 });

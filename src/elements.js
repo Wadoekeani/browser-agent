@@ -77,3 +77,23 @@ export function listElements(limit) {
   if (found.length > limit) lines.push(`（還有 ${found.length - limit} 個元素沒列出；要找的不在清單裡就先 scroll 再重新讀）`);
   return lines.join("\n") || "（這個頁面沒有可互動的元素）";
 }
+
+// 點擊／送出前的風險判斷，同樣在頁面裡執行、必須自成一體。
+// 不可逆動作要使用者點頭，不能只靠系統提示詞：網頁裡的提示詞注入可以說服模型跳過確認。
+export function inspectTarget(sel, submitting) {
+  const el = document.querySelector(sel);
+  if (!el) return null;
+  const RISKY = /付款|支付|購買|結帳|下單|訂購|刪除|轉帳|匯款|送出|提交|發布|發佈|傳送|pay|buy|purchase|checkout|order|delete|submit|publish|send|transfer/i;
+  const textOf = (e) => (e?.getAttribute("aria-label") || e?.innerText || e?.value || "").replace(/\s+/g, " ").trim().slice(0, 40);
+  const form = el.form ?? el.closest("form");
+  // 只有一個輸入欄、沒有密碼欄的表單（搜尋框之類）送出不用問，問太多使用者會養成直接按允許
+  const fields = form?.querySelectorAll("input:not([type=hidden]):not([type=submit]):not([type=button]):not([type=image]), textarea, select").length ?? 0;
+  const seriousForm = !!form && (fields > 1 || !!form.querySelector("input[type=password]"));
+  if (submitting) {
+    const btn = form?.querySelector("[type=submit], button:not([type])");
+    return { risky: seriousForm || RISKY.test(textOf(btn)), label: textOf(btn) || "表單" };
+  }
+  const label = textOf(el) || el.tagName.toLowerCase();
+  const isSubmit = !!form && el.matches("button[type=submit], button:not([type]), input[type=submit], input[type=image]");
+  return { risky: RISKY.test(label) || (isSubmit && seriousForm), label };
+}
