@@ -120,6 +120,9 @@
     background: var(--surface); box-shadow: var(--shadow); transition: border-color .15s;
   }
   .suggest:hover { border-color: var(--accent); }
+  .suggest-list { display: grid; gap: 10px; transition: opacity .2s; }
+  #empty[data-loading] #empty-sub { animation: pulse 1.4s ease-in-out infinite; }
+  #empty[data-loading] .suggest-list { opacity: .55; }
   .suggest svg { color: var(--accent); }
   .suggest span { flex: 1; }
   .suggest small { display: block; color: var(--faint); font-size: 12px; }
@@ -357,19 +360,8 @@
         <div>
           <h2>今天要在這頁做什麼？</h2>
         </div>
-        <p>我看得到你目前開著的分頁。</p>
-        <button class="suggest" type="button" data-prompt="幫我整理這一頁的重點，用條列">
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M3 4h10M3 8h10M3 12h6"/></svg>
-          <span>摘要這一頁<small>三十秒看完長文</small></span>
-        </button>
-        <button class="suggest" type="button" data-prompt="把這一頁的主要內容翻譯成繁體中文">
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M2.5 4h7M6 2.5V4M4 4c.5 2.5 2.5 4.5 5 5.5M8 4c-.5 2.5-2.5 4.5-5 5.5M9 13.5l2.5-6 2.5 6M10 11.5h3"/></svg>
-          <span>翻譯成中文<small>保留原本的段落結構</small></span>
-        </button>
-        <button class="suggest" type="button" data-prompt="找出這一頁上所有的價格與方案，做成比較表">
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.5" y="2.5" width="11" height="11" rx="2"/><path d="M2.5 6.5h11M6.5 6.5v7"/></svg>
-          <span>整理成表格<small>價格、規格、清單都行</small></span>
-        </button>
+        <p id="empty-sub">我看得到你目前開著的分頁。</p>
+        <div id="suggestions" class="suggest-list"></div>
       </div>
       <div id="log"></div>
     </div>
