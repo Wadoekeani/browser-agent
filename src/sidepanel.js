@@ -4,6 +4,7 @@ import DOMPurify from "dompurify";
 import { SYSTEM, tools, MEMORY_TOOLS } from "./shared.js";
 import { memoryPrompt, addMemory, forgetMemory } from "./memory.js";
 import { listElements, inspectTarget } from "./elements.js";
+import { displayText, chatTitle, upsertChat, toMarkdown } from "./history.js";
 import { parseSkill, serializeSkill, skillsPrompt, expandSlash, cleanName } from "./skills.js";
 
 let skills = []; // [{ name, description, body }]，存在 chrome.storage.local
@@ -29,8 +30,17 @@ async function activeTab() {
 }
 
 async function inPage(tabId, func, args) {
-  const [res] = await chrome.scripting.executeScript({ target: { tabId }, func, args });
-  return res?.result;
+  try {
+    const [res] = await chrome.scripting.executeScript({ target: { tabId }, func, args });
+    return res?.result;
+  } catch (e) {
+    const m = String(e?.message ?? e);
+    if (/Cannot access|cannot be scripted|chrome:\/\/|extensions gallery|webstore/i.test(m)) {
+      throw new Error("這個頁面（瀏覽器內建頁、擴充功能商店、PDF 檢視器等）不允許擴充功能讀取或操作，請告訴使用者換到一般網頁");
+    }
+    if (/Frame .*removed|No frame|document.*unloaded|navigat/i.test(m)) throw new Error("頁面正在換頁，等一下再 read_page 看結果");
+    throw e;
+  }
 }
 
 function waitLoad(tabId, ms = 15000) {
@@ -66,8 +76,11 @@ async function guard(tabId, input, submitting) {
   }
 }
 
-async function runTool(name, input) {
-  const tab = await activeTab();
+// tabId 是這次任務開始時的分頁：使用者中途切到別的分頁，agent 也不會跑去操作那一頁
+async function runTool(name, input, tabId) {
+  const tab = await chrome.tabs.get(tabId).catch(() => {
+    throw new Error("任務開始時的分頁已經被關掉了，停止操作並告訴使用者");
+  });
   switch (name) {
     case "remember":
     case "forget": {
@@ -331,11 +344,43 @@ function addTool(name, input) {
 
 // SDK 的錯誤帶 HTTP 狀態碼，翻成使用者看得懂的話
 function friendly(err) {
-  const map = { 401: "存取金鑰無效或已停用，請到設定重新輸入", 402: "帳戶額度不足，請先儲值", 429: "請求太頻繁，請稍候再試" };
+  const map = {
+    401: "存取金鑰無效或已停用，請到設定重新輸入", 402: "帳戶額度不足，請先儲值", 429: "請求太頻繁，請稍候再試",
+    500: "服務暫時出錯，請稍後再試", 529: "模型目前太忙，請稍後再試",
+  };
+  if (err instanceof Anthropic.APIConnectionError) return "連不上伺服器，檢查網路後再試一次";
   return map[err?.status] ?? err.message;
 }
 
+// fluxRelay 的註冊與儲值頁。ponytail: 目前沒有公開註冊／儲值頁，先指到首頁，網址定了只改這裡
+const SIGNUP_URL = "https://ai-gateway.iosoftware.ai/";
+const TOPUP_URL = "https://ai-gateway.iosoftware.ai/";
+const isRelay = () => !!$("key").value && !$("key").value.startsWith("sk-ant-");
+
+function linkButton(text, href) {
+  const a = document.createElement("a");
+  a.className = "link-btn";
+  a.textContent = text;
+  a.href = href;
+  a.target = "_blank";
+  a.rel = "noopener";
+  return a;
+}
+
 let messages = [];
+let chats = []; // 對話歷史，見 history.js
+let chatId = null; // 目前這段對話在 chats 裡的 id；新對話在第一次存檔時才建立
+
+async function saveChat() {
+  if (!messages.length) return;
+  chatId ??= Date.now().toString(36);
+  chats = upsertChat(chats, { id: chatId, title: chatTitle(messages), updated: Date.now(), messages });
+  try {
+    await chrome.storage.local.set({ chats });
+  } catch {
+    addMsg("error", "瀏覽器儲存空間不夠，這段對話沒有存進歷史。到「歷史」刪掉一些舊對話再試。");
+  }
+}
 let controller = null; // 按「停止」時中止整個 agent 迴圈（串流中或跑工具中都算）
 
 const GATEWAY = "https://ai-gateway.iosoftware.ai";
@@ -363,6 +408,7 @@ async function runApi(userText, stats) {
   // 系統提示詞與工具在這一輪固定：中途 remember 寫入不會改到它，否則快取整段失效，模型也會以為「早就記得」
   const system = SYSTEM + skillsPrompt(skills) + (memoryOn ? memoryPrompt(memories) : "");
   const turnTools = memoryOn ? tools : tools.filter((t) => !MEMORY_TOOLS.includes(t.name));
+  const tabId = (await activeTab()).id;
 
   let capped = false;
   while (true) {
@@ -423,7 +469,7 @@ async function runApi(userText, stats) {
     for (const u of uses) {
       const done = addTool(u.name, u.input);
       try {
-        results.push({ type: "tool_result", tool_use_id: u.id, content: await runTool(u.name, u.input) });
+        results.push({ type: "tool_result", tool_use_id: u.id, content: await runTool(u.name, u.input, tabId) });
         done();
       } catch (e) {
         done(e.message);
@@ -436,6 +482,7 @@ async function runApi(userText, stats) {
       results.push({ type: "text", text: `（系統：已達單次任務 ${MAX_STEPS} 步的上限。停止操作，用幾句話告訴使用者做到哪裡、還差什麼；使用者回覆後可以接著做。）` });
     }
     messages.push({ role: "user", content: results });
+    saveChat(); // 每一步都存：任務做到一半關掉側邊欄，歷史裡還留著進度
   }
 }
 
@@ -451,7 +498,10 @@ function addStats(stats, spent) {
 
 // ---------- 事件 ----------
 
-const saved = await chrome.storage.local.get(["key", "model", "effort", "skills", "pageChars", "suggestOn", "memories", "memoryOn"]);
+const saved = await chrome.storage.local.get(["key", "model", "effort", "skills", "pageChars", "suggestOn", "memories", "memoryOn", "chats", "seededSkills"]);
+chats = saved.chats ?? [];
+$("promo").href = SIGNUP_URL;
+$("balance").href = TOPUP_URL;
 memories = saved.memories ?? [];
 memoryOn = saved.memoryOn ?? true;
 if (saved.pageChars) pageChars = saved.pageChars;
@@ -471,6 +521,7 @@ if (saved.model && [...$("model").options].some((o) => o.value === saved.model))
 // fluxRelay 金鑰才有的額外功能：右上角餘額（Anthropic 金鑰查不到，直接隱藏）
 const LOW_BALANCE = 50; // 新台幣
 let lastBalance = null; // 算「這次任務花多少」用
+let lowWarned = false; // 餘額偏低每次開側邊欄只提醒一次
 async function refreshBalance() {
   const key = $("key").value;
   const chip = $("balance");
@@ -483,6 +534,10 @@ async function refreshBalance() {
     chip.textContent = `NT$ ${u.balance.toLocaleString("en-US", { maximumFractionDigits: u.balance < 100 ? 2 : 0 })}`;
     chip.title = `fluxRelay 餘額\n近 ${u.window_days} 天花費 NT$ ${u.spend_twd}，${u.requests} 次請求\n點擊前往儲值`;
     chip.classList.toggle("low", u.balance < LOW_BALANCE);
+    if (u.balance < LOW_BALANCE && !lowWarned) {
+      lowWarned = true;
+      addMsg("note", `fluxRelay 餘額剩 NT$ ${u.balance.toFixed(0)}，較長的任務可能中途停下。`).append(" ", linkButton("前往儲值 →", TOPUP_URL));
+    }
     chip.hidden = false;
   } catch {
     chip.hidden = true; // 查不到就不顯示，不擋對話
@@ -541,9 +596,89 @@ $("logout").addEventListener("click", async () => {
   showView();
 });
 
+// ---------- 歷史對話 ----------
+
+// 把存下來的 messages 畫回畫面（思考摘要不重畫，省得對話變很長）
+function renderChat() {
+  $("log").replaceChildren();
+  const tools = new Map(); // tool_use id → 結束卡片的函式
+  for (const m of messages) {
+    if (m.role === "user") {
+      const text = displayText(m.content);
+      if (text != null) { addMsg("user", text); continue; }
+      for (const r of m.content) if (r.type === "tool_result") tools.get(r.tool_use_id)?.(r.is_error ? String(r.content) : undefined);
+      continue;
+    }
+    for (const b of m.content) {
+      if (b.type === "text") { const md = mdBlock(); md.append(b.text); md.finish(); }
+      else if (b.type === "tool_use") tools.set(b.id, addTool(b.name, b.input));
+    }
+  }
+  stick(true);
+}
+
+const ICON_DOWNLOAD = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.5v8M4.5 7L8 10.5 11.5 7M3 13.5h10"/></svg>';
+const ICON_TRASH = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5"/></svg>';
+
+function renderHistory() {
+  const list = $("history-list");
+  list.replaceChildren();
+  if (!chats.length) { list.innerHTML = '<div class="skill-empty">還沒有對話</div>'; return; }
+  for (const chat of chats) {
+    const row = document.createElement("div");
+    row.className = "history-row";
+    const open = document.createElement("button");
+    open.type = "button";
+    open.className = "skill-row";
+    if (chat.id === chatId) open.setAttribute("aria-current", "true");
+    const title = document.createElement("strong");
+    title.textContent = chat.title;
+    const time = document.createElement("small");
+    time.textContent = new Date(chat.updated).toLocaleString("zh-TW", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
+    open.append(title, time);
+    open.addEventListener("click", () => {
+      controller?.abort();
+      messages = structuredClone(chat.messages);
+      chatId = chat.id;
+      renderChat();
+      $("history").close();
+    });
+    const exp = document.createElement("button");
+    exp.type = "button";
+    exp.className = "icon-btn";
+    exp.title = exp.ariaLabel = "匯出成 Markdown";
+    exp.innerHTML = ICON_DOWNLOAD;
+    exp.addEventListener("click", () => {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([toMarkdown(chat)], { type: "text/markdown" }));
+      a.download = `${chat.title.replace(/[\\/:*?"<>|]/g, "_").slice(0, 40)}.md`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    });
+    const del = document.createElement("button");
+    del.type = "button";
+    del.className = "icon-btn";
+    del.title = del.ariaLabel = "刪除";
+    del.innerHTML = ICON_TRASH;
+    del.addEventListener("click", async () => {
+      if (!confirm(`刪除「${chat.title}」？`)) return;
+      chats = chats.filter((c) => c !== chat);
+      if (chat.id === chatId) chatId = null; // 畫面上的對話留著，下次送出會存成新的一筆
+      await chrome.storage.local.set({ chats });
+      renderHistory();
+    });
+    row.append(open, exp, del);
+    list.append(row);
+  }
+}
+$("open-history").addEventListener("click", () => { renderHistory(); $("history").showModal(); });
+$("close-history").addEventListener("click", () => $("history").close());
+$("history").addEventListener("click", (e) => { if (e.target === $("history")) $("history").close(); });
+
 $("reset").addEventListener("click", () => {
   controller?.abort();
   messages = [];
+  chatId = null;
   $("log").replaceChildren();
   $("input").focus();
   scheduleSuggestions();
@@ -698,12 +833,35 @@ $("memory-clear").addEventListener("click", async () => {
 
 // ---------- 技能 ----------
 
-const EXAMPLE_SKILL = {
+const DEFAULT_SKILLS = [{
   name: "頁面摘要",
   description: "把目前頁面整理成「一句話結論＋重點＋可行動事項」的固定格式",
   body: "1. 用 read_page 讀整頁。\n2. 第一行用粗體寫一句話結論。\n3. 接著用條列寫 3–5 個重點，每點不超過 30 字。\n4. 最後一節「可以做的事」，列出讀者看完能採取的行動；沒有就寫「無」。",
-};
-skills = saved.skills ?? [EXAMPLE_SKILL]; // 第一次安裝放一個範例，讓人看得懂格式
+}, {
+  name: "grill-me",
+  description: "嚴格拷問使用者的計畫、想法或決定（或目前頁面上的提案），一次一題，逼出沒想清楚的地方",
+  body: [
+    "你是一位嚴格但公正的審查者，任務是拷問使用者的計畫，讓它在真正執行前先被打穿。",
+    "",
+    "1. 找出要拷問的對象：使用者訊息裡的計畫／想法；沒寫就用 read_page 讀目前頁面（提案、企劃、PR、規格書、商品頁都可以）。對象不明確就先問一句「要我拷問什麼？」。",
+    "2. 先用兩三句話複述你理解的計畫與它的目標，確認沒搞錯。",
+    "3. 開始拷問：**一次只問一個問題**，問完就停下來等使用者回答，不要一次列一整串。",
+    "   - 從最可能讓整件事失敗的地方問起：前提假設、誰會付錢／誰會用、成本與時間、風險與失敗情境、替代方案、怎麼知道成功了。",
+    "   - 問題要具體、指得出計畫裡的哪一句，不要問空泛的「你確定嗎」。",
+    "   - 使用者的回答含糊、迴避或自相矛盾時，直接指出來並追問，不要客氣放過；回答得好就承認，換下一個弱點。",
+    "4. 使用者說「夠了」「結束」，或你已經問了約 8 題時收尾：列出「站得住的部分」「還沒回答清楚的漏洞」「建議下一步先驗證什麼」，每項一兩句。",
+    "",
+    "語氣直接、不刻薄，不要讚美或鋪陳；你的價值在於找出問題，不是讓使用者感覺良好。",
+  ].join("\n"),
+}];
+// 預設技能：每個只放一次（記在 seededSkills），使用者刪掉就不會再加回來；舊使用者也拿得到之後新增的預設技能
+skills = saved.skills ?? [];
+const seeded = saved.seededSkills ?? (saved.skills ? ["頁面摘要"] : []);
+const fresh = DEFAULT_SKILLS.filter((d) => !seeded.includes(d.name) && !skills.some((s) => s.name === d.name));
+if (fresh.length || !saved.seededSkills) {
+  skills.push(...fresh);
+  chrome.storage.local.set({ skills, seededSkills: DEFAULT_SKILLS.map((d) => d.name) });
+}
 
 async function saveSkills() {
   await chrome.storage.local.set({ skills });
@@ -882,10 +1040,12 @@ $("form").addEventListener("submit", async (e) => {
     if (messages.length > start) messages.length = start; // 丟掉這一輪，避免留下沒配對 tool_result 的 tool_use
     document.querySelectorAll(".pending").forEach((el) => el.remove());
     document.querySelectorAll('.thinking[data-state="running"] > summary').forEach((el) => { el.textContent = "思考已中斷"; });
-    addMsg("error", controller.signal.aborted ? "已停止" : friendly(err));
+    const box = addMsg("error", controller.signal.aborted ? "已停止" : friendly(err));
+    if (err?.status === 402 && isRelay()) box.append(" ", linkButton("前往儲值 →", TOPUP_URL));
   } finally {
     controller = null;
     delete document.body.dataset.busy;
+    saveChat();
     // 每輪結束更新扣款後的餘額；fluxRelay 的差額就是這次任務的實際花費（含加成），不用自己維護價目表
     refreshBalance().then(() => addStats(stats, before != null && lastBalance != null ? before - lastBalance : 0));
     $("send").setAttribute("aria-label", "送出");

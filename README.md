@@ -15,6 +15,8 @@ A Claude agent that lives in Chrome's side panel. It reads the page you're on, c
 - Page tools: `read_page`, `navigate`, `click`, `type` (also picks `<select>` options), `scroll`. `read_page elements=true` lists interactive elements with numbers, so the model clicks `ref: 12` instead of guessing CSS selectors
 - Skills: reusable instructions in the same `SKILL.md` format as Claude Code — type `/` to pick one, or let the model load one when it fits
 - Slash commands: `/clear` resets the conversation
+- History: conversations are saved as you go (last 30, in `chrome.storage.local`) — reopen one from the clock icon and keep chatting, or export it as Markdown
+- Built-in skills: `頁面摘要` (page summary) and `grill-me` (stress-tests your plan or the proposal on the page, one question at a time)
 - Memory: tell it "remember …" and it keeps short facts about you across conversations (Settings → Memory to view, edit or turn off). Memories live in `chrome.storage.local` and ride along in the system prompt, so no extra round trip; only things you say yourself are stored, never text from web pages
 - Runs entirely in the extension — no server of your own
 - Models: Sonnet 5, Opus 5, Haiku 4.5, with an effort picker (low → max) for Sonnet / Opus

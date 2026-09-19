@@ -48,3 +48,31 @@ assert.equal(forgetMemory(two, "不存在").list, two);
 assert.match(memoryPrompt([]), /目前沒有記憶/);
 assert.match(memoryPrompt(two), /- 比價一律換算成台幣/);
 console.log("memory: all checks passed");
+
+// ---------- 對話歷史 ----------
+import { displayText, chatTitle, upsertChat, toMarkdown, MAX_CHATS } from "../src/history.js";
+{
+  const expanded = expandSlash("/會議紀錄 重點放前面", [a]);
+  assert.equal(displayText(expanded), "/會議紀錄 重點放前面");
+  assert.equal(displayText(expandSlash("/會議紀錄", [a])), "/會議紀錄");
+  assert.equal(displayText([{ type: "tool_result" }]), null);
+  const msgs = [
+    { role: "user", content: expanded },
+    { role: "assistant", content: [{ type: "thinking", thinking: "x" }, { type: "tool_use", id: "t", name: "click", input: { ref: 3 } }] },
+    { role: "user", content: [{ type: "tool_result", tool_use_id: "t", content: "已點擊" }] },
+    { role: "assistant", content: [{ type: "text", text: "好了" }] },
+  ];
+  assert.equal(chatTitle(msgs), "/會議紀錄 重點放前面");
+  assert.equal(chatTitle([{ role: "user", content: "字".repeat(50) }]), "字".repeat(40) + "…");
+  const md = toMarkdown({ title: "t", updated: 0, messages: msgs });
+  assert.match(md, /## 你\n\n\/會議紀錄 重點放前面\n\n> 工具 `click` \{"ref":3\}\n\n## Claude\n\n好了\n$/);
+  assert.ok(!md.includes("<skill"), "匯出不含展開的技能指示");
+  let chats = [];
+  for (let i = 0; i < MAX_CHATS + 5; i++) chats = upsertChat(chats, { id: String(i) });
+  assert.equal(chats.length, MAX_CHATS);
+  assert.equal(chats[0].id, String(MAX_CHATS + 4));
+  chats = upsertChat(chats, { id: "10", title: "新" });
+  assert.equal(chats[0].title, "新");
+  assert.equal(chats.filter((c) => c.id === "10").length, 1);
+}
+console.log("history: all checks passed");

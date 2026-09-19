@@ -5,7 +5,9 @@
   "scripts": {
     "build": "esbuild src/sidepanel.js --bundle --format=esm --target=chrome120 --outfile=extension/sidepanel.js",
     "watch": "npm run build -- --watch",
-    "check": "node scripts/check.mjs"
+    "check": "node scripts/check.mjs",
+    "test:e2e": "npm run build && node scripts/e2e.mjs",
+    "package": "node scripts/package.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.127.0",
@@ -13,7 +15,8 @@
     "marked": "^18.0.13"
   },
   "devDependencies": {
-    "esbuild": "^0.28.2"
+    "esbuild": "^0.28.2",
+    "playwright": "^1.63.0"
   },
   "license": "MIT"
 }
