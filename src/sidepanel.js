@@ -269,8 +269,11 @@ async function runApi(userText) {
     const stream = client.beta.messages.stream(
       {
         model, max_tokens: 64000, system: SYSTEM + skillsPrompt(skills), tools, messages,
-        // Sonnet 5 / Opus 5 預設不回傳思考內容，summarized 才看得到摘要
-        thinking: { type: "adaptive", display: "summarized" },
+        // Sonnet 5 / Opus 5：自適應思考＋effort；預設不回傳思考內容，summarized 才看得到摘要。Haiku 兩者都不支援
+        ...(isHaiku(model) ? {} : {
+          thinking: { type: "adaptive", display: "summarized" },
+          output_config: { effort: $("effort").value },
+        }),
         // 頂層 cache_control：自動把最後一個可快取區塊設成快取點，多輪對話重送的歷史只算快取讀取價
         cache_control: { type: "ephemeral" },
       },
@@ -322,7 +325,7 @@ async function runApi(userText) {
 
 // ---------- 事件 ----------
 
-const saved = await chrome.storage.local.get(["key", "model", "skills"]);
+const saved = await chrome.storage.local.get(["key", "model", "effort", "skills"]);
 if (saved.key) $("key").value = saved.key;
 if (saved.model && [...$("model").options].some((o) => o.value === saved.model)) $("model").value = saved.model;
 
@@ -352,7 +355,13 @@ function showView() {
   else $("onboard-key").focus();
 }
 
-$("model").addEventListener("change", () => chrome.storage.local.set({ model: $("model").value }));
+if (saved.effort) $("effort").value = saved.effort;
+// Haiku 4.5 不支援 effort 與自適應思考：選它時藏起思考深度
+const isHaiku = (model) => model.startsWith("claude-haiku");
+const syncEffort = () => { $("effort").hidden = isHaiku($("model").value); };
+syncEffort();
+$("model").addEventListener("change", () => { chrome.storage.local.set({ model: $("model").value }); syncEffort(); });
+$("effort").addEventListener("change", () => chrome.storage.local.set({ effort: $("effort").value }));
 $("key").addEventListener("change", () => {
   $("key").value = $("key").value.trim();
   chrome.storage.local.set({ key: $("key").value });

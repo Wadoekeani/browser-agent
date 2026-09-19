@@ -16,6 +16,8 @@ A Claude agent that lives in Chrome's side panel. It reads the page you're on, c
 - Skills: reusable instructions in the same `SKILL.md` format as Claude Code — type `/` to pick one, or let the model load one when it fits
 - Slash commands: `/clear` resets the conversation
 - Runs entirely in the extension — no server of your own
+- Models: Sonnet 5, Opus 5, Haiku 4.5, with an effort picker (low → max) for Sonnet / Opus
+- Home suggestions generated from the page you are on (click fills the composer; nothing is sent until you press Enter)
 - Light and dark themes
 
 ## Getting a key
