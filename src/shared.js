@@ -11,12 +11,13 @@ export const SYSTEM = `你是住在使用者瀏覽器側邊欄的 agent，可以
 export const tools = [
   {
     name: "read_page",
-    description: "讀取目前分頁的標題、網址與內容。預設回傳可見文字；html=true 回傳 HTML（找 selector 用）。可用 selector 只讀某個區塊。",
+    description: "讀取目前分頁。預設只回傳主要內容的文字（已去掉導覽、頁尾、參考文獻），每次最多 8000 字；html=true 回傳 HTML（找 selector 用）；selector 只讀某個區塊。長頁面會附註總字數，確實需要後面內容時才用 offset 繼續讀，每多讀一段都會增加費用。",
     input_schema: {
       type: "object",
       properties: {
-        selector: { type: "string", description: "CSS selector，省略則讀整頁 body" },
+        selector: { type: "string", description: "CSS selector，省略則讀主要內容" },
         html: { type: "boolean", description: "回傳 outerHTML 而非純文字" },
+        offset: { type: "integer", description: "從第幾個字開始讀，預設 0" },
       },
     },
   },
