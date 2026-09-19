@@ -1,10 +1,19 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
-import { SYSTEM, tools } from "./shared.js";
+import { SYSTEM, tools, MEMORY_TOOLS } from "./shared.js";
+import { memoryPrompt, addMemory, forgetMemory } from "./memory.js";
 import { parseSkill, serializeSkill, skillsPrompt, expandSlash, cleanName } from "./skills.js";
 
 let skills = []; // [{ name, description, body }]，存在 chrome.storage.local
+let memories = []; // 關於使用者的事實，一條一句
+let memoryOn = true;
+
+async function setMemories(list) {
+  memories = list;
+  await chrome.storage.local.set({ memories });
+  renderMemoryList();
+}
 
 const $ = (id) => document.getElementById(id);
 // 讀頁一次最多回傳的字數（設定頁可調）。中文約 1 字 1 token：整頁維基 5.5 萬字＝5 萬 token，一次摘要就要好幾塊台幣
@@ -37,6 +46,12 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function runTool(name, input) {
   const tab = await activeTab();
   switch (name) {
+    case "remember":
+    case "forget": {
+      const { list, result } = (name === "remember" ? addMemory : forgetMemory)(memories, input.text);
+      if (list !== memories) await setMemories(list);
+      return result;
+    }
     case "use_skill": {
       const skill = skills.find((s) => s.name === input.name);
       if (!skill) throw new Error(`沒有名為「${input.name}」的技能，可用的有：${skills.map((s) => s.name).join("、") || "（無）"}`);
@@ -280,6 +295,9 @@ async function runApi(userText) {
   const client = makeClient(apiKey);
 
   messages.push({ role: "user", content: userText });
+  // 系統提示詞與工具在這一輪固定：中途 remember 寫入不會改到它，否則快取整段失效，模型也會以為「早就記得」
+  const system = SYSTEM + skillsPrompt(skills) + (memoryOn ? memoryPrompt(memories) : "");
+  const turnTools = memoryOn ? tools : tools.filter((t) => !MEMORY_TOOLS.includes(t.name));
 
   while (true) {
     controller.signal.throwIfAborted();
@@ -287,7 +305,8 @@ async function runApi(userText) {
     let block = null; // 目前正在串流的思考／文字區塊
     const stream = client.beta.messages.stream(
       {
-        model, max_tokens: 64000, system: SYSTEM + skillsPrompt(skills), tools, messages,
+        model, max_tokens: 64000,
+        system, tools: turnTools, messages,
         // Sonnet 5 / Opus 5：自適應思考＋effort；預設不回傳思考內容，summarized 才看得到摘要。Haiku 兩者都不支援
         ...(isHaiku(model) ? {} : {
           thinking: { type: "adaptive", display: "summarized" },
@@ -344,7 +363,9 @@ async function runApi(userText) {
 
 // ---------- 事件 ----------
 
-const saved = await chrome.storage.local.get(["key", "model", "effort", "skills", "pageChars", "suggestOn"]);
+const saved = await chrome.storage.local.get(["key", "model", "effort", "skills", "pageChars", "suggestOn", "memories", "memoryOn"]);
+memories = saved.memories ?? [];
+memoryOn = saved.memoryOn ?? true;
 if (saved.pageChars) pageChars = saved.pageChars;
 $("page-chars").value = String(pageChars);
 $("suggest-on").checked = saved.suggestOn ?? true;
@@ -543,6 +564,47 @@ chrome.tabs.onActivated.addListener(scheduleSuggestions);
 chrome.tabs.onUpdated.addListener((id, info, tab) => { if (tab.active && info.status === "complete") scheduleSuggestions(); });
 renderSuggestions(DEFAULT_SUGGESTIONS, false);
 showView(); // 要等上面的建議邏輯宣告完才能呼叫
+
+// ---------- 記憶（設定頁） ----------
+
+function renderMemoryList() {
+  const list = $("memory-list");
+  list.replaceChildren();
+  if (!memories.length) {
+    list.innerHTML = '<div class="skill-empty">還沒有記憶。跟 agent 說「記住……」，或在下面自己新增。</div>';
+  }
+  for (const m of memories) {
+    const row = document.createElement("div");
+    row.className = "memory-row";
+    const text = document.createElement("span");
+    text.textContent = m;
+    const del = document.createElement("button");
+    del.type = "button";
+    del.className = "icon-btn";
+    del.title = "刪除";
+    del.innerHTML = ICON_ERR;
+    del.addEventListener("click", () => setMemories(memories.filter((x) => x !== m)));
+    row.append(text, del);
+    list.append(row);
+  }
+  $("memory-clear").hidden = !memories.length;
+}
+renderMemoryList();
+
+$("memory-on").checked = memoryOn;
+$("memory-on").addEventListener("change", () => {
+  memoryOn = $("memory-on").checked;
+  chrome.storage.local.set({ memoryOn });
+});
+$("memory-add").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const { list, result } = addMemory(memories, $("memory-input").value);
+  $("memory-error").textContent = list === memories ? result : "";
+  if (list !== memories) { await setMemories(list); $("memory-input").value = ""; }
+});
+$("memory-clear").addEventListener("click", async () => {
+  if (confirm(`清空全部 ${memories.length} 條記憶？`)) await setMemories([]);
+});
 
 // ---------- 技能 ----------
 

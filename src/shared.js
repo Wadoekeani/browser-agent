@@ -45,4 +45,15 @@ export const tools = [
     description: "載入某個技能的完整指示。系統提示詞的「可用技能」清單裡有適合這次任務的技能時，先呼叫它再照指示做。",
     input_schema: { type: "object", properties: { name: { type: "string", description: "技能名稱" } }, required: ["name"] },
   },
+  {
+    name: "remember",
+    description: "把使用者親口說的、長期成立的偏好或個人事實記下來，之後的對話都看得到。一次一句、濃縮成 200 字內。",
+    input_schema: { type: "object", properties: { text: { type: "string", description: "要記住的一句話，例如「比價時一律換算成新台幣」" } }, required: ["text"] },
+  },
+  {
+    name: "forget",
+    description: "刪掉一條過時或使用者要求忘記的記憶。text 給記憶的完整句子，或能唯一辨識它的一段文字。",
+    input_schema: { type: "object", properties: { text: { type: "string" } }, required: ["text"] },
+  },
 ];
+export const MEMORY_TOOLS = ["remember", "forget"];

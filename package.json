@@ -5,7 +5,7 @@
   "scripts": {
     "build": "esbuild src/sidepanel.js --bundle --format=esm --target=chrome120 --outfile=extension/sidepanel.js",
     "watch": "npm run build -- --watch",
-    "check": "node scripts/check-skills.mjs"
+    "check": "node scripts/check.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.127.0",

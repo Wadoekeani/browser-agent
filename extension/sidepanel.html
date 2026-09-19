@@ -304,6 +304,15 @@
   .link-btn { border: 0; background: none; padding: 2px 6px; border-radius: 6px; color: var(--accent); font-size: 12px; font-weight: 500; cursor: pointer; }
   .link-btn:hover { background: var(--accent-soft); }
   .skill-list { display: grid; gap: 4px; }
+  .memory-row {
+    display: flex; align-items: center; gap: 6px; padding: 5px 4px 5px 10px; border-radius: 8px;
+    border: 1px solid var(--line); background: var(--surface); font-size: 12.5px;
+  }
+  .memory-row span { flex: 1; min-width: 0; word-break: break-word; }
+  .memory-row .icon-btn { width: 24px; height: 24px; flex: none; }
+  .memory-row .icon-btn svg { width: 12px; height: 12px; }
+  #memory-add { padding: 0; }
+  #memory-add .input { font-family: inherit; font-size: 12.5px; }
   .skill-row {
     display: grid; gap: 1px; width: 100%; text-align: left; padding: 7px 10px; border-radius: 8px;
     border: 1px solid var(--line); background: var(--surface);
@@ -440,6 +449,20 @@
           <span>依頁面產生首頁建議<small>每開一個新頁面多一次 Haiku 呼叫；關閉則顯示固定建議</small></span>
           <input type="checkbox" class="switch" id="suggest-on" checked>
         </label>
+      </div>
+      <div class="divider"></div>
+      <div class="row">
+        <label class="setting">
+          <span class="field-label" style="flex:1">記憶</span>
+          <input type="checkbox" class="switch" id="memory-on" checked aria-label="啟用記憶">
+        </label>
+        <div id="memory-list" class="skill-list"></div>
+        <form class="key-row" id="memory-add">
+          <input class="input" id="memory-input" placeholder="例如：比價時一律換算成新台幣" autocomplete="off" maxlength="200">
+          <button class="btn btn-ghost" type="submit">新增</button>
+        </form>
+        <div class="form-error" id="memory-error"></div>
+        <div class="hint">agent 會記住你親口說的偏好，每次對話都帶著。記憶會隨請求送給模型，不要放密碼或機密。<button class="link-btn danger" type="button" id="memory-clear">清空全部</button></div>
       </div>
       <div class="divider"></div>
       <div class="row">
