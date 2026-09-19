@@ -1,38 +1,56 @@
 # Browser Agent
 
-Chrome 側邊欄裡的 Claude agent：填入 Anthropic API Key 就能用，會讀取並操作目前分頁。
+A Claude agent that lives in Chrome's side panel. It reads the page you're on, clicks, types and navigates for you — and shows its thinking along the way.
 
-## 安裝
+在 Chrome 側邊欄裡的 Claude agent：讀取目前分頁、幫你點擊、填表、換頁，並顯示思考過程。
+
+<p>
+  <img src="docs/onboard.png" width="300" alt="Onboarding">
+  <img src="docs/chat.png" width="300" alt="Chat with markdown">
+</p>
+
+## Features
+
+- Streams replies with Markdown (tables, code blocks with copy buttons) and collapsible thinking summaries
+- Page tools: `read_page`, `navigate`, `click`, `type`
+- Runs entirely in the extension — no server of your own
+- Light and dark themes
+
+## Getting a key
+
+Paste either key into the side panel. The prefix decides where requests go:
+
+| Key | Goes to | Billing |
+|---|---|---|
+| `sk-ant-…` | Anthropic API directly | Your Anthropic account |
+| `relay-…` | [fluxRelay](https://ai-gateway.iosoftware.ai/) | Pay-as-you-go on fluxRelay |
+
+The key is stored in `chrome.storage.local` on your machine only.
+
+## Install (from source)
 
 ```bash
 npm install
-npm run build      # 產出 extension/sidepanel.js；開發時用 npm run watch
+npm run build        # outputs extension/sidepanel.js; use `npm run watch` while developing
 ```
 
-Chrome → `chrome://extensions` → 開「開發人員模式」→「載入未封裝項目」→ 選 `extension/` 資料夾。
-點工具列的圖示打開側邊欄，在「設定」填入 API Key。
+Open `chrome://extensions`, enable **Developer mode**, click **Load unpacked**, and pick the `extension/` folder. Click the toolbar icon to open the side panel.
 
-## 兩種模式（在側邊欄「設定」切換）
+## Security notes
 
-| 模式 | 認證 | 怎麼跑 |
-|---|---|---|
-| API Key | Anthropic API Key，按用量計費 | 瀏覽器直接呼叫 Messages API，不需要 server |
-| Agent | 本機 Claude Code 的登入（訂閱），或環境變數 `CLAUDE_CODE_OAUTH_TOKEN`（`claude setup-token` 產生） | 另開終端機 `npm run agent`，在本機跑 Claude Agent SDK |
+- Web page content is untrusted. The system prompt tells the model to ignore instructions found on pages and to confirm before irreversible actions (submitting forms, payments, deleting), but prompt injection is not a solved problem — watch what it does on sensitive sites.
+- Model output is sanitized with DOMPurify before rendering. Images, media, forms and inline styles are stripped, so a page can't trick the model into leaking the conversation through an image URL.
 
-Agent 模式的架構（照 pq-s-workflow reading-agent 的做法）：
-`server/agent-server.mjs` 用 `query()` 搭配串流輸入，瀏覽器工具透過 `createSdkMcpServer` 提供；
-模型叫工具時，server 經 NDJSON 串流把 `tool_call` 送給擴充功能，擴充功能在分頁上執行後 `POST /tool-result` 回傳。
-多輪對話靠 `resume`（session 存在 Claude Code 的預設目錄）。為了壓 token：cwd 放在 repo 外、`tools: []` 關掉內建工具、
-`settingSources: []` 不載入 `~/.claude` 設定 —— 實測一輪的基底 context 約 5.4k token。
-server 只綁 127.0.0.1，並拒絕非擴充功能來源的請求（避免網頁偷打 localhost 用你的訂閱）。
+## Project layout
 
-## 工具
-
-| 工具 | 作用 |
+| Path | What |
 |---|---|
-| `read_page` | 讀目前分頁的文字或 HTML（可指定 selector） |
-| `navigate` | 前往網址（只接受 http/https） |
-| `click` | 點擊 CSS selector 對應的元素 |
-| `type` | 在輸入框填字，可選擇送出 |
+| `src/sidepanel.js` | Agent loop, tool implementations, UI wiring |
+| `src/shared.js` | System prompt and tool definitions |
+| `extension/` | Manifest, side panel HTML/CSS, service worker (load this folder in Chrome) |
 
-工具定義在 `src/shared.js`（兩種模式共用），實作在 `src/sidepanel.js` 的 `runTool`。加新工具兩邊各加一段即可；schema 目前只支援 string / boolean 參數（server 端轉 zod 的限制）。
+To add a tool: add its schema to `tools` in `src/shared.js` and a `case` in `runTool` in `src/sidepanel.js`.
+
+## License
+
+[MIT](LICENSE)

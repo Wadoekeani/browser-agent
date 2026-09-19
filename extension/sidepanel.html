@@ -77,7 +77,17 @@
   .btn-ghost { background: var(--surface); border-color: var(--line-strong); }
   .btn-ghost:hover { background: var(--surface-2); }
   .hint { font-size: 12px; color: var(--faint); }
+  .hint a { color: var(--accent); text-decoration: none; }
   .form-error { font-size: 12px; color: var(--err); }
+  .promo {
+    display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 12px; text-decoration: none; color: var(--fg);
+    background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
+  }
+  .promo:hover { border-color: var(--accent); }
+  .promo span { flex: 1; }
+  .promo strong { display: block; font-weight: 600; }
+  .promo small { color: var(--muted); font-size: 12px; }
+  .promo svg { color: var(--accent); }
   .form-error:empty { display: none; }
 
   /* ---------- 對話 ---------- */
@@ -276,11 +286,15 @@
     </div>
     <form class="card" id="onboard-form">
       <label class="field-label" for="onboard-key">存取金鑰</label>
-      <input class="input" id="onboard-key" type="password" placeholder="relay-…" autocomplete="off" spellcheck="false">
+      <input class="input" id="onboard-key" type="password" placeholder="relay-… 或 sk-ant-…" autocomplete="off" spellcheck="false">
       <div class="form-error" id="onboard-error"></div>
       <button class="btn btn-primary" type="submit">開始使用</button>
-      <div class="hint">金鑰只存在這台電腦的瀏覽器裡。</div>
+      <div class="hint">fluxRelay 金鑰或自己的 Anthropic API Key 都可以。金鑰只存在這台電腦的瀏覽器裡。</div>
     </form>
+    <a class="promo" href="https://ai-gateway.iosoftware.ai/" target="_blank" rel="noopener">
+      <span><strong>還沒有金鑰？</strong><small>用 fluxRelay 取得，按用量計費</small></span>
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5L10.5 8 6 12.5"/></svg>
+    </a>
   </section>
 
   <main id="chat">
@@ -339,6 +353,7 @@
           <button class="btn btn-ghost" type="button" id="toggle-key">顯示</button>
         </div>
       </div>
+      <div class="hint" id="provider"></div>
       <div class="divider"></div>
       <button class="btn btn-ghost danger" type="button" id="logout">移除金鑰並登出</button>
     </div>
