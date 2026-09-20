@@ -7,10 +7,11 @@
 **An AI agent in Chrome's side panel that reads and works on your tab — with your own key or your own local model.**
 
 [![CI](https://github.com/Wadoekeani/browser-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/Wadoekeani/browser-agent/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/Wadoekeani/browser-agent)](https://github.com/Wadoekeani/browser-agent/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Chrome 122+](https://img.shields.io/badge/Chrome-122%2B-4285F4?logo=googlechrome&logoColor=white)
 
-English · [繁體中文](README.zh-TW.md)
+English · [繁體中文](README.zh-TW.md) · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Español](README.es.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [Português (Brasil)](README.pt-BR.md) · [Italiano](README.it.md) · [Русский](README.ru.md) · [Tiếng Việt](README.vi.md) · [Bahasa Indonesia](README.id.md) · [ไทย](README.th.md) · [Türkçe](README.tr.md)
 
 <img src="docs/demo.gif" width="900" alt="Select a paragraph and /explain it, compare laptop prices into a CSV, then the agent asks before clicking Place order and the user denies">
 
@@ -59,7 +60,18 @@ English · [繁體中文](README.zh-TW.md)
 
 ## Quick start
 
-Browser Agent isn't on the Chrome Web Store yet (coming soon). Install from source — you need Node.js 22+ and Chrome 122+.
+Browser Agent isn't on the Chrome Web Store yet (coming soon). Until then, install the release build — no Node.js or build step needed. Requires Chrome 122+.
+
+1. Download `browser-agent-<version>.zip` from the [latest release](https://github.com/Wadoekeani/browser-agent/releases/latest) and unzip it.
+2. Open `chrome://extensions` and turn on **Developer mode** (top right).
+3. Click **Load unpacked** and pick the unzipped folder.
+4. Click the toolbar icon to open the side panel, agree to the short data notice, choose a provider and paste a key (or a local endpoint).
+
+To update, download the new zip, replace the contents of the same folder, and click the reload icon on the extension card. Your settings, chats and memories are kept. Loading it from a different folder installs a separate copy that starts empty.
+
+### Build from source
+
+You need Node.js 22+.
 
 ```bash
 git clone https://github.com/Wadoekeani/browser-agent.git
@@ -68,9 +80,7 @@ npm ci
 npm run build
 ```
 
-1. Open `chrome://extensions` and turn on **Developer mode**.
-2. Click **Load unpacked** and pick the `extension/` folder.
-3. Click the toolbar icon to open the side panel, agree to the short data notice, choose a provider and paste a key (or a local endpoint).
+Then load the `extension/` folder with **Load unpacked** as in step 3.
 
 ## Providers
 

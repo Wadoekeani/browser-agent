@@ -7,10 +7,11 @@
 **住在 Chrome 側邊欄的 AI agent：讀取並操作你目前的分頁——用你自己的金鑰，或你自己架的本機模型。**
 
 [![CI](https://github.com/Wadoekeani/browser-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/Wadoekeani/browser-agent/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/Wadoekeani/browser-agent)](https://github.com/Wadoekeani/browser-agent/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Chrome 122+](https://img.shields.io/badge/Chrome-122%2B-4285F4?logo=googlechrome&logoColor=white)
 
-[English](README.md) · 繁體中文
+[English](README.md) · 繁體中文 · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Español](README.es.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [Português (Brasil)](README.pt-BR.md) · [Italiano](README.it.md) · [Русский](README.ru.md) · [Tiếng Việt](README.vi.md) · [Bahasa Indonesia](README.id.md) · [ไทย](README.th.md) · [Türkçe](README.tr.md)
 
 <img src="docs/demo.gif" width="900" alt="選取一段文字後用 /explain 解釋；把筆電價格整理成 CSV；agent 要按「Place order」前先跳出確認卡，使用者按拒絕">
 
@@ -61,7 +62,18 @@
 
 ## 快速開始
 
-Browser Agent 還沒上架 Chrome 線上應用程式商店（即將推出），目前從原始碼安裝。需要 Node.js 22 以上與 Chrome 122 以上。
+Browser Agent 還沒上架 Chrome 線上應用程式商店（即將推出）。在那之前，直接裝 Release 版本就好——不用 Node.js，也不用自己 build。需要 Chrome 122 以上。
+
+1. 從[最新版 Release](https://github.com/Wadoekeani/browser-agent/releases/latest) 下載 `browser-agent-<版本>.zip` 並解壓縮。
+2. 打開 `chrome://extensions`，開啟右上角的 **開發人員模式**。
+3. 按 **載入未封裝項目**，選剛解壓縮的資料夾。
+4. 點工具列的圖示打開側邊欄，同意簡短的資料說明，選供應商並貼上金鑰（或填本機端點）。
+
+要更新時，下載新的 zip、把內容覆蓋進**同一個資料夾**，再按擴充功能卡片上的重新載入圖示。設定、對話與記憶都會保留。從不同的資料夾載入會變成另一份獨立安裝，裡面是空的。
+
+### 從原始碼 build
+
+需要 Node.js 22 以上。
 
 ```bash
 git clone https://github.com/Wadoekeani/browser-agent.git
@@ -70,9 +82,7 @@ npm ci
 npm run build
 ```
 
-1. 打開 `chrome://extensions`，開啟右上角的 **開發人員模式**。
-2. 按 **載入未封裝項目**，選 `extension/` 資料夾。
-3. 點工具列的圖示打開側邊欄，同意簡短的資料說明，選供應商並貼上金鑰（或填本機端點）。
+接著照第 3 步用 **載入未封裝項目** 選 `extension/` 資料夾。
 
 ## 供應商
 
